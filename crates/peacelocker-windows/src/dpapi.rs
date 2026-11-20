@@ -3,7 +3,11 @@
 //! The default scope is the current Windows user. No static optional entropy
 //! is used. Failure is returned to the caller; there is no plaintext fallback.
 
-use peacelocker_security::DataKey;
+use peacelocker_security::{
+    DataKey, EncryptedEnvelope, EncryptionError, SecretError, decrypt_with_aad,
+    encrypt_with_aad,
+};
+use serde::{Deserialize, Serialize};
 use std::{ffi::c_void, ptr, slice};
 use thiserror::Error;
 use windows_sys::Win32::{
@@ -12,6 +16,7 @@ use windows_sys::Win32::{
 };
 
 const CRYPTPROTECT_UI_FORBIDDEN_FLAG: u32 = 0x0000_0001;
+const DPAPI_ENVELOPE_VERSION: u32 = 1;
 
 #[derive(Debug, Error)]
 pub enum DpapiError {
@@ -33,7 +38,10 @@ pub fn protect_data_key(key: &DataKey) -> Result<Vec<u8>, DpapiError> {
         cbData: u32::try_from(bytes.len()).map_err(|_| DpapiError::InvalidKeyLength)?,
         pbData: bytes.as_ptr() as *mut u8,
     };
-    let mut output = CRYPT_INTEGER_BLOB { cbData: 0, pbData: ptr::null_mut() };
+    let mut output = CRYPT_INTEGER_BLOB {
+        cbData: 0,
+        pbData: ptr::null_mut(),
+    };
 
     // SAFETY: input points to a live 32-byte key for the duration of the call;
     // DPAPI writes an allocated output buffer that is copied and freed below.
@@ -65,7 +73,10 @@ pub fn unprotect_data_key(protected: &[u8]) -> Result<DataKey, DpapiError> {
         cbData: u32::try_from(protected.len()).map_err(|_| DpapiError::InvalidKeyLength)?,
         pbData: protected.as_ptr() as *mut u8,
     };
-    let mut output = CRYPT_INTEGER_BLOB::default();
+    let mut output = CRYPT_INTEGER_BLOB {
+        cbData: 0,
+        pbData: ptr::null_mut(),
+    };
 
     // SAFETY: input points to the caller-owned protected blob for this call;
     // DPAPI allocates output, which is copied and freed before returning.
@@ -98,8 +109,7 @@ pub fn unprotect_data_key(protected: &[u8]) -> Result<DataKey, DpapiError> {
 fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiError> {
     if output.pbData.is_null() || output.cbData == 0 {
         if !output.pbData.is_null() {
-            // SAFETY: DPAPI allocated this buffer and ownership is transferred
-            // to the caller, which releases it with LocalFree.
+            // SAFETY: DPAPI allocated this buffer; LocalFree releases it.
             unsafe {
                 let _ = LocalFree(output.pbData.cast::<c_void>());
             }
@@ -115,19 +125,10 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     // SAFETY: pbData points to cbData writable bytes allocated by DPAPI.
     unsafe {
         output.pbData.write_bytes(0, output.cbData as usize);
-        let _ = LocalFree(Some(HLOCAL(output.pbData.cast::<c_void>())));
+        let _ = LocalFree(output.pbData.cast::<c_void>());
     }
     Ok(bytes)
 }
-
-
-use peacelocker_security::{
-    DataKey, EncryptedEnvelope, EncryptionError, SecretError, decrypt_with_aad,
-    encrypt_with_aad,
-};
-use serde::{Deserialize, Serialize};
-
-const DPAPI_ENVELOPE_VERSION: u32 = 1;
 
 /// A complete configuration envelope: an AEAD-encrypted payload plus a
 /// current-user DPAPI-wrapped DEK. Serialize this structure for persistence.
@@ -155,7 +156,9 @@ pub enum ProtectedStorageError {
 
 /// Generate a DEK, wrap it with current-user DPAPI, then encrypt the payload.
 /// The DPAPI blob is included as AEAD associated data to prevent key-blob swaps.
-pub fn seal_configuration(plaintext: &[u8]) -> Result<DpapiProtectedEnvelope, ProtectedStorageError> {
+pub fn seal_configuration(
+    plaintext: &[u8],
+) -> Result<DpapiProtectedEnvelope, ProtectedStorageError> {
     let key = DataKey::generate()?;
     let protected_dek = protect_data_key(&key)?;
     let payload = encrypt_with_aad(&key, plaintext, &protected_dek)?;
