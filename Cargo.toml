@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/peacelocker-app",
+    "crates/peacelocker-core",
+    "crates/peacelocker-security",
+    "crates/peacelocker-monitor",
+    "crates/peacelocker-storage",
+    "crates/peacelocker-notifications",
+    "crates/peacelocker-windows",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/no-peace/PeaceLocker"
+
+[workspace.dependencies]
+eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+egui = "0.31.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
