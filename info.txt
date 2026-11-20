@@ -1,0 +1,136 @@
+Summary of Your Project
+Peace's Vault is a well-structured Windows security application featuring:
+Process monitoring with NtSuspendProcess for blocking apps/files
+UI Automation for detecting blocked URLs in browsers
+PBKDF2 PIN hashing with salt + pepper
+TPM/DPAPI encryption for configuration storage
+Intruder detection via webcam capture with Discord webhook alerts
+Watchdog process for self-protection
+Custom themed GUI with blur effects
+Suggestions & Improvements
+1. Security Improvements
+Table
+Issue	Current	Suggested
+Pepper fallback	Falls back to PLAIN: if TPM/DPAPI fails	Fail securely - don't store config if encryption fails
+Memory wiping	SecureZeroMemory used inconsistently	Create RAII wrapper for sensitive strings
+Config tampering	No integrity verification	Add HMAC to config file
+Webhook abuse	No rate limiting	Add cooldown between alerts (e.g., 5 min)
+cpp
+Copy
+// Suggested: RAII secure string
+class SecureString {
+    std::vector<char> data;
+public:
+    ~SecureString() { if (!data.empty()) SecureZeroMemory(data.data(), data.size()); }
+    // ... constructors, accessors
+};
+2. Code Quality & Architecture
+Table
+Area	Issue	Suggestion
+Resource leaks	Manual DeleteObject, CloseHandle	Use RAII wrappers (e.g., std::unique_ptr with custom deleters)
+Error handling	Silent failures common	Add structured logging (e.g., spdlog or Windows Event Log)
+Magic numbers	Hardcoded sizes, timeouts	Define constants in a central config
+Thread safety	Some globals lack mutex protection	Audit all shared state
+cpp
+Copy
+// Suggested: RAII handle wrapper
+struct HandleDeleter { void operator()(HANDLE h) { if (h) CloseHandle(h); } };
+using UniqueHandle = std::unique_ptr<std::remove_pointer<HANDLE>::type, HandleDeleter>;
+3. Performance Optimizations
+Table
+Component	Current	Suggested
+Process monitoring	Polls every 150ms	Use WMI events or ETW for process creation notifications
+URL detection	UI Automation every 800ms	Cache browser HWNDs, only query visible windows
+Folder monitoring	Enumerates all windows every 500ms	Use ReadDirectoryChangesW for file system monitoring
+Screen capture	Full-screen blur on every block	Cache blurred background, only update on resolution change
+4. Maintainability
+cpp
+Copy
+// Current: Magic numbers scattered
+Sleep(150);  // What does this mean?
+
+// Suggested: Centralized constants
+namespace Config {
+    constexpr DWORD kProcessPollIntervalMs = 150;
+    constexpr DWORD kUrlPollIntervalMs = 800;
+    constexpr int kMaxPinAttempts = 3;
+    constexpr DWORD kPinLockDurationSec = 6 * 60 * 60; // 6 hours
+}
+5. Bug Fixes Needed
+gui.cpp line 1000+ truncated - The file appears incomplete, missing the rest of TryUnlock and ShowNextOrHide functions
+Potential deadlock in monitor.cpp:
+cpp
+Copy
+// Line 104: g_susp can be null but is called without check
+if (hProc && type != L"url" && type != L"folder" && g_susp) 
+    susp = (g_susp(hProc) >= 0);  // Good - has check
+COM initialization inconsistency: controller.cpp initializes COM in PickFolder but doesn't check if already initialized
+6. Feature Enhancements
+Table
+Feature	Suggestion
+Time-based rules	Allow blocking only during certain hours
+Stealth mode	Option to hide tray icon
+Export/Import	Backup and restore blocked items list
+Statistics	Track blocked attempts, most-blocked items
+Hotkey unlock	Global hotkey to quickly unlock current app
+7. Build & CI/CD
+cmake
+Copy
+# Suggested: Add CMakeLists.txt for cross-platform build support
+cmake_minimum_required(VERSION 3.16)
+project(PeacesVault)
+
+set(CMAKE_CXX_STANDARD 17)
+add_executable(WindowsLocker 
+    main.cpp config.cpp monitor.cpp gui.cpp 
+    tray.cpp controller.cpp security.cpp capture.cpp splash.cpp)
+target_link_libraries(WindowsLocker bcrypt ncrypt winhttp mfplat)
+8. Testing
+Add unit tests for critical components:
+cpp
+
+// Test PIN hashing
+TEST(SecurityTest, PinHashing) {
+    std::string pin = "1234";
+    auto hash1 = DerivePinHashV2(pin, salt, iterations, pepper);
+    auto hash2 = DerivePinHashV2(pin, salt, iterations, pepper);
+    EXPECT_EQ(hash1, hash2);  // Deterministic
+}
+
+// Test timing-safe comparison
+TEST(SecurityTest, TimingSafeEqual) {
+    EXPECT_TRUE(TimingSafeEqual("abc", "abc"));
+    EXPECT_FALSE(TimingSafeEqual("abc", "def"));
+}
+9. Documentation
+Add inline documentation for complex functions:
+cpp
+Copy
+/**
+ * Suspends a process and adds it to the block queue.
+ * @param pid Process ID to block
+ * @param label Human-readable name for the blocked item
+ * @param type Block type ("app", "file", "folder", "url")
+ * @note Uses NtSuspendProcess via ntdll.dll
+ */
+void EnqueueBlock(DWORD pid, const std::wstring& label, const std::wstring& type);
+10. Modern C++ Refactoring
+Replace C-style patterns with modern C++:
+cpp
+Copy
+// Current: Raw arrays
+wchar_t exe[MAX_PATH]{};
+GetModuleFileNameW(nullptr, exe, MAX_PATH);
+
+// Modern: std::vector with dynamic sizing
+std::vector<wchar_t> exe(MAX_PATH);
+DWORD len = GetModuleFileNameW(nullptr, exe.data(), static_cast<DWORD>(exe.size()));
+Priority Recommendations
+Table
+Priority	Action	Impact
+High	Fix gui.cpp truncation	Critical - missing code
+High	Add logging infrastructure	Debugging, support
+Medium	Implement RAII wrappers	Prevent resource leaks
+Medium	Add webhook rate limiting	Prevent spam
+Low	Add CMake build system	Portability
+Your codebase is already quite solid with good separation of concerns and security-conscious design. The main areas for improvement are around resource management, error handling, and performance optimizations for the monitoring loops
