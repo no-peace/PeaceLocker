@@ -33,6 +33,8 @@ pub enum EncryptionError {
     RandomUnavailable,
     #[error("plaintext exceeds the 16 MiB configuration limit")]
     PayloadTooLarge,
+    #[error("authenticated metadata exceeds the 64 KiB limit")]
+    MetadataTooLarge,
     #[error("unsupported or malformed encrypted envelope")]
     InvalidEnvelope,
     #[error("authenticated decryption failed; data may be corrupted or modified")]
@@ -56,8 +58,11 @@ pub fn encrypt_with_aad(
     plaintext: &[u8],
     external_aad: &[u8],
 ) -> Result<EncryptedEnvelope, EncryptionError> {
-    if plaintext.len() > MAX_PLAINTEXT_BYTES || external_aad.len() > 64 * 1024 {
+    if plaintext.len() > MAX_PLAINTEXT_BYTES {
         return Err(EncryptionError::PayloadTooLarge);
+    }
+    if external_aad.len() > 64 * 1024 {
+        return Err(EncryptionError::MetadataTooLarge);
     }
 
     let mut nonce_bytes = [0_u8; 12];
@@ -95,7 +100,10 @@ pub fn decrypt_with_aad(
     envelope: &EncryptedEnvelope,
     external_aad: &[u8],
 ) -> Result<Vec<u8>, EncryptionError> {
-    if external_aad.len() > 64 * 1024 || envelope.format_version != FORMAT_VERSION
+    if external_aad.len() > 64 * 1024 {
+        return Err(EncryptionError::MetadataTooLarge);
+    }
+    if envelope.format_version != FORMAT_VERSION
         || envelope.cipher != CIPHER_NAME
         || envelope.ciphertext.len() < 16
         || envelope.ciphertext.len() > MAX_PLAINTEXT_BYTES + 16
@@ -141,6 +149,17 @@ mod tests {
         let second = DataKey::generate().expect("CSPRNG available");
         let envelope = encrypt(&first, b"private settings").expect("encryption succeeds");
         assert_eq!(decrypt(&second, &envelope), Err(EncryptionError::AuthenticationFailed));
+    }
+
+    #[test]
+    fn external_metadata_is_authenticated() {
+        let key = DataKey::generate().expect("CSPRNG available");
+        let envelope = encrypt_with_aad(&key, b"settings", b"wrapped-key-a").expect("encryption succeeds");
+        assert!(decrypt_with_aad(&key, &envelope, b"wrapped-key-a").is_ok());
+        assert_eq!(
+            decrypt_with_aad(&key, &envelope, b"wrapped-key-b"),
+            Err(EncryptionError::AuthenticationFailed)
+        );
     }
 
     #[test]
