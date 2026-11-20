@@ -86,9 +86,9 @@ pub fn unprotect_data_key(protected: &[u8]) -> Result<DataKey, DpapiError> {
         bytes.fill(0);
         return Err(DpapiError::InvalidKeyLength);
     }
-    let key: [u8; 32] = bytes
-        .try_into()
-        .map_err(|_| DpapiError::InvalidKeyLength)?;
+    let mut key = [0_u8; 32];
+    key.copy_from_slice(&bytes);
+    bytes.fill(0);
     Ok(DataKey::from_bytes(key))
 }
 
