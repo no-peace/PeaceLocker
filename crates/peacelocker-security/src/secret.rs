@@ -29,6 +29,10 @@ impl DataKey {
         Self(Zeroizing::new(bytes))
     }
 
+    pub(crate) fn expose(&self) -> &[u8; 32] {
+        &self.0
+    }
+
     /// Borrow the key bytes for the platform key-protection boundary.
     /// Callers must not retain or copy the returned bytes.
     pub fn expose_for_platform(&self) -> &[u8; 32] {
@@ -44,7 +48,7 @@ mod tests {
     fn generated_keys_are_32_bytes_and_distinct() {
         let first = DataKey::generate().expect("CSPRNG available");
         let second = DataKey::generate().expect("CSPRNG available");
-        assert_ne!(first.expose(), second.expose());
+        assert_ne!(first.expose_for_platform(), second.expose_for_platform());
         assert_eq!(first.expose().len(), 32);
     }
 }
