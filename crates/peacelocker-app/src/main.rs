@@ -37,16 +37,13 @@ impl eframe::App for PeaceLockerApp {
         egui::TopBottomPanel::top("top_bar").show(context, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("PeaceLocker");
-                ui.with_layout(
-                    egui::Layout::right_to_left(egui::Align::Center),
-                    |ui| {
-                        ui.label(
-                            egui::RichText::new("RUST V2 · FOUNDATION")
-                                .small()
-                                .color(egui::Color32::from_rgb(117, 190, 140)),
-                        );
-                    },
-                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        egui::RichText::new("RUST V2 · FOUNDATION")
+                            .small()
+                            .color(egui::Color32::from_rgb(117, 190, 140)),
+                    );
+                });
             });
         });
 
@@ -78,15 +75,27 @@ impl eframe::App for PeaceLockerApp {
 
             ui.horizontal_wrapped(|ui| {
                 status_card(ui, "Application", "Running", "Desktop shell initialized");
-                status_card(ui, "Protection", "Not configured", "Authentication is not implemented yet");
-                status_card(ui, "Monitoring", "Inactive", "No monitor sources are running");
+                status_card(
+                    ui,
+                    "Protection",
+                    "Not configured",
+                    "Authentication is not implemented yet",
+                );
+                status_card(
+                    ui,
+                    "Monitoring",
+                    "Inactive",
+                    "No monitor sources are running",
+                );
             });
 
             ui.add_space(24.0);
             ui.group(|ui| {
                 ui.heading("Foundation status");
                 ui.label("This build is the Phase 0 application skeleton.");
-                ui.label("No monitoring, webcam capture, network reporting, or enforcement is active.");
+                ui.label(
+                    "No monitoring, webcam capture, network reporting, or enforcement is active.",
+                );
                 ui.label(format!("Runtime state: {}", self.snapshot.status_label()));
             });
         });
