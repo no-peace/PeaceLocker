@@ -29,7 +29,9 @@ impl DataKey {
         Self(Zeroizing::new(bytes))
     }
 
-    pub(crate) fn expose(&self) -> &[u8; 32] {
+    /// Borrow the key bytes for the platform key-protection boundary.
+    /// Callers must not retain or copy the returned bytes.
+    pub fn expose_for_platform(&self) -> &[u8; 32] {
         &self.0
     }
 }
