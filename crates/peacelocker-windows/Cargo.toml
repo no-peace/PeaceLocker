@@ -13,4 +13,5 @@ windows = { version = "0.58", features = [
 ] }
 
 [dependencies]
+peacelocker-security = { path = "../peacelocker-security" }
 thiserror.workspace = true
