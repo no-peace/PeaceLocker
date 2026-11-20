@@ -1,0 +1,10 @@
+[package]
+name = "peacelocker-monitor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+peacelocker-core = { path = "../peacelocker-core" }
+thiserror.workspace = true
