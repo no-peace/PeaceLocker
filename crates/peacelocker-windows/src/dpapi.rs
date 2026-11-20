@@ -116,3 +116,85 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     }
     Ok(bytes)
 }
+
+
+use peacelocker_security::{
+    DataKey, EncryptedEnvelope, EncryptionError, SecretError, decrypt_with_aad,
+    encrypt_with_aad,
+};
+use serde::{Deserialize, Serialize};
+
+const DPAPI_ENVELOPE_VERSION: u32 = 1;
+
+/// A complete configuration envelope: an AEAD-encrypted payload plus a
+/// current-user DPAPI-wrapped DEK. Serialize this structure for persistence.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DpapiProtectedEnvelope {
+    pub format_version: u32,
+    pub protected_dek: Vec<u8>,
+    pub payload: EncryptedEnvelope,
+}
+
+#[derive(Debug, Error)]
+pub enum ProtectedStorageError {
+    #[error(transparent)]
+    Dpapi(#[from] DpapiError),
+    #[error(transparent)]
+    Encryption(#[from] EncryptionError),
+    #[error(transparent)]
+    Random(#[from] SecretError),
+    #[error("unsupported protected-envelope version")]
+    UnsupportedVersion,
+    #[error("protected key blob is empty or too large")]
+    InvalidProtectedKey,
+}
+
+/// Generate a DEK, wrap it with current-user DPAPI, then encrypt the payload.
+/// The DPAPI blob is included as AEAD associated data to prevent key-blob swaps.
+pub fn seal_configuration(plaintext: &[u8]) -> Result<DpapiProtectedEnvelope, ProtectedStorageError> {
+    let key = DataKey::generate()?;
+    let protected_dek = protect_data_key(&key)?;
+    let payload = encrypt_with_aad(&key, plaintext, &protected_dek)?;
+    Ok(DpapiProtectedEnvelope {
+        format_version: DPAPI_ENVELOPE_VERSION,
+        protected_dek,
+        payload,
+    })
+}
+
+/// Unwrap the DEK and authenticate the payload. Any DPAPI or AEAD failure is
+/// returned; no plaintext fallback or partial data is exposed.
+pub fn open_configuration(
+    envelope: &DpapiProtectedEnvelope,
+) -> Result<Vec<u8>, ProtectedStorageError> {
+    if envelope.format_version != DPAPI_ENVELOPE_VERSION {
+        return Err(ProtectedStorageError::UnsupportedVersion);
+    }
+    if envelope.protected_dek.is_empty() || envelope.protected_dek.len() > 64 * 1024 {
+        return Err(ProtectedStorageError::InvalidProtectedKey);
+    }
+    let key = unprotect_data_key(&envelope.protected_dek)?;
+    Ok(decrypt_with_aad(&key, &envelope.payload, &envelope.protected_dek)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dpapi_wrapped_configuration_round_trip() {
+        let envelope = seal_configuration(b"secret configuration")
+            .expect("DPAPI should work for the current test user");
+        let plaintext = open_configuration(&envelope).expect("DPAPI and AEAD should verify");
+        assert_eq!(plaintext, b"secret configuration");
+    }
+
+    #[test]
+    fn modified_dpapi_blob_is_rejected() {
+        let mut envelope = seal_configuration(b"secret configuration")
+            .expect("DPAPI should work for the current test user");
+        envelope.protected_dek[0] ^= 1;
+        assert!(open_configuration(&envelope).is_err());
+    }
+}
