@@ -26,6 +26,8 @@ pub enum DpapiError {
     InvalidOutput,
     #[error("protected key has an invalid length")]
     InvalidKeyLength,
+    #[error("Windows failed to release a DPAPI allocation")]
+    MemoryReleaseFailed,
 }
 
 /// Protect the 256-bit data key for the current Windows user.
@@ -110,8 +112,9 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     if output.pbData.is_null() || output.cbData == 0 {
         if !output.pbData.is_null() {
             // SAFETY: DPAPI allocated this buffer; LocalFree releases it.
-            unsafe {
-                let _ = LocalFree(output.pbData.cast::<c_void>());
+            let remaining = unsafe { LocalFree(output.pbData.cast::<c_void>()) };
+            if !remaining.is_null() {
+                return Err(DpapiError::MemoryReleaseFailed);
             }
         }
         return Err(DpapiError::InvalidOutput);
@@ -123,9 +126,12 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     // Clear DPAPI's allocation before releasing it. This is especially
     // important for CryptUnprotectData, whose output contains the raw DEK.
     // SAFETY: pbData points to cbData writable bytes allocated by DPAPI.
-    unsafe {
+    let remaining = unsafe {
         output.pbData.write_bytes(0, output.cbData as usize);
-        let _ = LocalFree(output.pbData.cast::<c_void>());
+        LocalFree(output.pbData.cast::<c_void>())
+    };
+    if !remaining.is_null() {
+        return Err(DpapiError::MemoryReleaseFailed);
     }
     Ok(bytes)
 }
