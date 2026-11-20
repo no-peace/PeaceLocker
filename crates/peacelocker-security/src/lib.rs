@@ -1,4 +1,14 @@
-//! Authentication and cryptographic key management.
+//! Authentication, authenticated encryption, and secret-key handling.
 //!
-//! Security implementations are intentionally not stubbed with insecure
-//! fallbacks. The crate will gain functionality in Phase 1.
+//! This crate deliberately has no plaintext fallback. Windows DPAPI integration
+//! lives in the platform crate; portable cryptographic primitives live here.
+
+mod encryption;
+mod pin;
+mod recovery;
+mod secret;
+
+pub use encryption::{EncryptedEnvelope, decrypt, encrypt};
+pub use pin::{PinError, hash_pin, verify_pin};
+pub use recovery::{RecoveryCodeBundle, RecoveryCodeError, RecoveryCodeSet, generate_recovery_codes};
+pub use secret::{DataKey, SecretError};
