@@ -8,7 +8,7 @@ mod pin;
 mod recovery;
 mod secret;
 
-pub use encryption::{EncryptedEnvelope, decrypt, encrypt};
+pub use encryption::{EncryptedEnvelope, decrypt, decrypt_with_aad, encrypt, encrypt_with_aad};
 pub use pin::{PinError, hash_pin, verify_pin};
 pub use recovery::{RecoveryCodeBundle, RecoveryCodeError, RecoveryCodeSet, generate_recovery_codes};
 pub use secret::{DataKey, SecretError};
