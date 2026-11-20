@@ -14,4 +14,5 @@ windows = { version = "0.58", features = [
 
 [dependencies]
 peacelocker-security = { path = "../peacelocker-security" }
+serde.workspace = true
 thiserror.workspace = true
