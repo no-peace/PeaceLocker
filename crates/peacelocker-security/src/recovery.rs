@@ -1,6 +1,6 @@
 //! One-time recovery-code generation and verification.
 
-use crate::{PinError, hash_pin, verify_pin};
+use crate::{hash_pin, verify_pin};
 use getrandom::getrandom;
 use thiserror::Error;
 
@@ -81,10 +81,8 @@ pub fn generate_recovery_codes(count: usize) -> Result<RecoveryCodeBundle, Recov
         let mut random = [0_u8; 16];
         getrandom(&mut random).map_err(|_| RecoveryCodeError::RandomUnavailable)?;
         let code = random.iter().map(|byte| format!("{byte:02X}")).collect::<String>();
-        let verifier = hash_pin(code.as_bytes()).map_err(|error| match error {
-            PinError::HashingFailed => RecoveryCodeError::HashingFailed,
-            _ => RecoveryCodeError::HashingFailed,
-        })?;
+        let verifier =
+            hash_pin(code.as_bytes()).map_err(|_| RecoveryCodeError::HashingFailed)?;
         codes.push(code);
         hashes.push(verifier);
     }
