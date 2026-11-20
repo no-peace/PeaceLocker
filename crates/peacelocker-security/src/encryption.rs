@@ -41,12 +41,14 @@ pub enum EncryptionError {
     AuthenticationFailed,
     #[error("encryption failed")]
     EncryptionFailed,
+    #[error("a data key may encrypt only one envelope; generate a new key")]
+    KeyAlreadyUsed,
 }
 
 /// Encrypt a configuration payload using AES-256-GCM and a fresh random nonce.
 ///
-/// A key must be rotated before 2^32 encryptions. PeaceLocker configuration
-/// writes are low-volume; the storage layer must still enforce key rotation.
+/// Each generated data key is single-use for encryption. Restored keys are
+/// decrypt-only. This enforces nonce uniqueness across configuration rewrites.
 pub fn encrypt(key: &DataKey, plaintext: &[u8]) -> Result<EncryptedEnvelope, EncryptionError> {
     encrypt_with_aad(key, plaintext, &[])
 }
@@ -63,6 +65,9 @@ pub fn encrypt_with_aad(
     }
     if external_aad.len() > 64 * 1024 {
         return Err(EncryptionError::MetadataTooLarge);
+    }
+    if !key.claim_for_encryption() {
+        return Err(EncryptionError::KeyAlreadyUsed);
     }
 
     let mut nonce_bytes = [0_u8; 12];
@@ -149,6 +154,13 @@ mod tests {
         let second = DataKey::generate().expect("CSPRNG available");
         let envelope = encrypt(&first, b"private settings").expect("encryption succeeds");
         assert_eq!(decrypt(&second, &envelope), Err(EncryptionError::AuthenticationFailed));
+    }
+
+    #[test]
+    fn a_data_key_can_encrypt_only_once() {
+        let key = DataKey::generate().expect("CSPRNG available");
+        encrypt(&key, b"first").expect("first encryption succeeds");
+        assert_eq!(encrypt(&key, b"second"), Err(EncryptionError::KeyAlreadyUsed));
     }
 
     #[test]
