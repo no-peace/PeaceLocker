@@ -12,16 +12,18 @@ The original application is implemented in C++ and uses Win32 APIs. Its source r
 
 The Rust implementation is being developed on the `rewrite/rust-v2` branch.
 
-**Current status: Phase 0 — workspace foundation in progress.**
+**Current status: Phase 1 — security foundation implemented; validation pending.**
 
 The Rust track currently includes:
 - A Cargo workspace split into application, core, security, monitoring, storage, notifications, and Windows platform crates.
-- An initial egui desktop shell.
-- A platform-independent application state snapshot.
-- Initial core unit tests.
-- Windows CI for formatting, Clippy, and tests.
+- An initial egui desktop shell and platform-independent application state.
+- Argon2id PIN verifier primitives with random salts and bounded verifier parameters.
+- AES-256-GCM authenticated encryption with a single-use data-key lifecycle.
+- Current-user Windows DPAPI key protection and a combined protected configuration envelope.
+- 128-bit one-time recovery-code generation and Argon2id verifiers.
+- Initial unit and Windows integration tests (written, not yet executed).
 
-The placeholder crates do not yet implement their named security or platform features. This build does not authenticate users, encrypt files/configuration, monitor activity, capture webcam images, send Discord notifications, or enforce restrictions. Do not use it to protect real data.
+The cryptographic building blocks are not yet integrated into the desktop unlock UI or persistent storage workflow. Lockout, atomic file storage, migration, monitoring, and enforcement are not implemented. Compilation, Clippy, tests, Windows runtime behavior, and independent security review are still pending. **Do not use the Rust rewrite to protect real data.**
 
 ## Rust development
 
@@ -42,7 +44,8 @@ cargo run -p peacelocker-app
 - [Rust v2 architecture](docs/PEACELOCKER_V2_ARCHITECTURE.md)
 - [Security and privacy specification](docs/PEACELOCKER_V2_SECURITY.md)
 - [Implementation roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
-- [Rust v2 development notes](README_RUST_V2.md)
+- [Phase 1 security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
+- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Development policy
 
@@ -51,4 +54,4 @@ cargo run -p peacelocker-app
 - Keep unsafe Windows FFI isolated in the Windows platform crate.
 - Do not describe best-effort monitoring as filesystem or network access control.
 - Do not enable webcam capture or activity telemetry without explicit user opt-in.
-- Run formatting, linting, and tests before milestone commits.
+- Run formatting, linting, tests, and Windows runtime checks before release.
