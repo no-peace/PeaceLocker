@@ -4,22 +4,19 @@
 //! is used. Failure is returned to the caller; there is no plaintext fallback.
 
 use peacelocker_security::DataKey;
-use std::{ffi::c_void, slice};
+use std::{ffi::c_void, ptr, slice};
 use thiserror::Error;
-use windows::{
-    Win32::Foundation::{HLOCAL, LocalFree},
-    Win32::Security::Cryptography::{
-        CRYPT_INTEGER_BLOB, CryptProtectData, CryptUnprotectData,
-    },
-    core::PCWSTR,
+use windows_sys::Win32::{
+    Foundation::{GetLastError, LocalFree},
+    Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptProtectData, CryptUnprotectData},
 };
 
 const CRYPTPROTECT_UI_FORBIDDEN_FLAG: u32 = 0x0000_0001;
 
 #[derive(Debug, Error)]
 pub enum DpapiError {
-    #[error("DPAPI operation failed: {0}")]
-    Windows(#[from] windows::core::Error),
+    #[error("DPAPI operation failed with Windows error {0}")]
+    ApiFailed(u32),
     #[error("DPAPI returned an invalid output buffer")]
     InvalidOutput,
     #[error("protected key has an invalid length")]
@@ -36,20 +33,23 @@ pub fn protect_data_key(key: &DataKey) -> Result<Vec<u8>, DpapiError> {
         cbData: u32::try_from(bytes.len()).map_err(|_| DpapiError::InvalidKeyLength)?,
         pbData: bytes.as_ptr() as *mut u8,
     };
-    let mut output = CRYPT_INTEGER_BLOB::default();
+    let mut output = CRYPT_INTEGER_BLOB { cbData: 0, pbData: ptr::null_mut() };
 
     // SAFETY: input points to a live 32-byte key for the duration of the call;
     // DPAPI writes an allocated output buffer that is copied and freed below.
     unsafe {
-        CryptProtectData(
+        let succeeded = CryptProtectData(
             &input,
-            PCWSTR::null(),
-            None,
-            None,
-            None,
+            ptr::null(),
+            ptr::null(),
+            ptr::null(),
+            ptr::null(),
             CRYPTPROTECT_UI_FORBIDDEN_FLAG,
             &mut output,
-        )?;
+        );
+        if succeeded == 0 {
+            return Err(DpapiError::ApiFailed(GetLastError()));
+        }
     }
 
     copy_and_free_output(output)
@@ -70,15 +70,18 @@ pub fn unprotect_data_key(protected: &[u8]) -> Result<DataKey, DpapiError> {
     // SAFETY: input points to the caller-owned protected blob for this call;
     // DPAPI allocates output, which is copied and freed before returning.
     unsafe {
-        CryptUnprotectData(
+        let succeeded = CryptUnprotectData(
             &input,
-            None,
-            None,
-            None,
-            None,
+            ptr::null_mut(),
+            ptr::null(),
+            ptr::null(),
+            ptr::null(),
             CRYPTPROTECT_UI_FORBIDDEN_FLAG,
             &mut output,
-        )?;
+        );
+        if succeeded == 0 {
+            return Err(DpapiError::ApiFailed(GetLastError()));
+        }
     }
 
     let mut bytes = copy_and_free_output(output)?;
@@ -98,7 +101,7 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
             // SAFETY: DPAPI allocated this buffer and ownership is transferred
             // to the caller, which releases it with LocalFree.
             unsafe {
-                let _ = LocalFree(Some(HLOCAL(output.pbData.cast::<c_void>())));
+                let _ = LocalFree(output.pbData.cast::<c_void>());
             }
         }
         return Err(DpapiError::InvalidOutput);
