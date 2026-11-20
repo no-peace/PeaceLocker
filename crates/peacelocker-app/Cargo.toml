@@ -1,0 +1,12 @@
+[package]
+name = "peacelocker-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+eframe.workspace = true
+peacelocker-core = { path = "../peacelocker-core" }
+tracing.workspace = true
+tracing-subscriber.workspace = true
