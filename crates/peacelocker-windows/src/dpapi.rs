@@ -121,7 +121,7 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     }
 
     // SAFETY: DPAPI guarantees cbData readable bytes at pbData on success.
-    let bytes = unsafe { slice::from_raw_parts(output.pbData, output.cbData as usize) }.to_vec();
+    let mut bytes = unsafe { slice::from_raw_parts(output.pbData, output.cbData as usize) }.to_vec();
 
     // Clear DPAPI's allocation before releasing it. This is especially
     // important for CryptUnprotectData, whose output contains the raw DEK.
@@ -131,6 +131,7 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
         LocalFree(output.pbData.cast::<c_void>())
     };
     if !remaining.is_null() {
+        bytes.fill(0);
         return Err(DpapiError::MemoryReleaseFailed);
     }
     Ok(bytes)
