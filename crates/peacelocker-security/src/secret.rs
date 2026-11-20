@@ -19,9 +19,9 @@ pub struct DataKey(Zeroizing<[u8; 32]>);
 impl DataKey {
     /// Generate a fresh key using the operating system CSPRNG.
     pub fn generate() -> Result<Self, SecretError> {
-        let mut bytes = [0_u8; 32];
-        getrandom(&mut bytes).map_err(|_| SecretError::RandomUnavailable)?;
-        Ok(Self(Zeroizing::new(bytes)))
+        let mut bytes = Zeroizing::new([0_u8; 32]);
+        getrandom(&mut *bytes).map_err(|_| SecretError::RandomUnavailable)?;
+        Ok(Self(bytes))
     }
 
     /// Reconstitute a key after unwrapping it with the platform key protector.
