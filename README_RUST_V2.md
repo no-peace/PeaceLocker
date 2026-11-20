@@ -4,16 +4,19 @@ This is the new Rust implementation of PeaceLocker. It is being developed separa
 
 ## Current status
 
-**Phase 0 — workspace foundation (in progress).**
+**Phase 1 — security foundation implementation committed; validation pending.**
 
-The repository currently contains:
-- A Cargo workspace with separated application, core, security, monitoring, storage, notifications, and Windows platform crates.
-- A minimal egui desktop shell.
-- A platform-independent application snapshot.
-- Initial core unit tests.
-- Windows GitHub Actions checks for formatting, Clippy, and tests.
+The workspace currently contains:
+- A Cargo workspace with application, core, security, monitoring, storage, notifications, and Windows platform crates.
+- A minimal egui desktop shell and platform-independent application snapshot.
+- Argon2id PIN verifier creation and bounded verification.
+- 256-bit CSPRNG data keys with zeroization and one-encryption-per-key enforcement.
+- AES-256-GCM authenticated envelopes with associated-data support.
+- Current-user DPAPI key wrapping and a combined protected configuration envelope.
+- 128-bit single-use recovery codes stored as Argon2id verifiers.
+- Initial unit and Windows integration tests (not yet run).
 
-The security, monitoring, storage, and notification crates are boundaries only. They do not claim to implement those features yet.
+These are security primitives, not a completed application security workflow. The UI, persistent file storage, lockout, backup/migration, and monitoring features are not integrated or implemented yet.
 
 ## Build on Windows
 
@@ -32,9 +35,11 @@ cargo run -p peacelocker-app
 - [Architecture](docs/PEACELOCKER_V2_ARCHITECTURE.md)
 - [Security and privacy](docs/PEACELOCKER_V2_SECURITY.md)
 - [Implementation roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
+- [Phase 1 security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
+- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Important limitations
 
-This is an early development build. It does not authenticate users, encrypt configuration, monitor processes or websites, capture webcam images, send Discord notifications, or enforce restrictions. Do not use it to protect real data.
+The code has not yet been compiled or tested. DPAPI is current-user scoped; TPM protection is not implemented. Argon2id parameters still need hardware benchmarking. There is no PIN lockout, GUI authentication integration, atomic persistent store, migration, monitoring, or enforcement. Do not use this branch to protect real data.
 
 The legacy C++ implementation remains in the repository as a reference. Do not remove or overwrite it as part of the Rust rewrite.
