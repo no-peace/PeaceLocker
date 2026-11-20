@@ -46,7 +46,17 @@ pub enum EncryptionError {
 /// A key must be rotated before 2^32 encryptions. PeaceLocker configuration
 /// writes are low-volume; the storage layer must still enforce key rotation.
 pub fn encrypt(key: &DataKey, plaintext: &[u8]) -> Result<EncryptedEnvelope, EncryptionError> {
-    if plaintext.len() > MAX_PLAINTEXT_BYTES {
+    encrypt_with_aad(key, plaintext, &[])
+}
+
+/// Encrypt with caller-supplied authenticated metadata in addition to the
+/// fixed PeaceLocker envelope context. The metadata is authenticated, not encrypted.
+pub fn encrypt_with_aad(
+    key: &DataKey,
+    plaintext: &[u8],
+    external_aad: &[u8],
+) -> Result<EncryptedEnvelope, EncryptionError> {
+    if plaintext.len() > MAX_PLAINTEXT_BYTES || external_aad.len() > 64 * 1024 {
         return Err(EncryptionError::PayloadTooLarge);
     }
 
@@ -55,8 +65,11 @@ pub fn encrypt(key: &DataKey, plaintext: &[u8]) -> Result<EncryptedEnvelope, Enc
     let cipher = Aes256Gcm::new_from_slice(key.expose())
         .map_err(|_| EncryptionError::EncryptionFailed)?;
     let nonce = Nonce::from_slice(&nonce_bytes);
+    let mut aad = Vec::with_capacity(ASSOCIATED_DATA.len() + external_aad.len());
+    aad.extend_from_slice(ASSOCIATED_DATA);
+    aad.extend_from_slice(external_aad);
     let ciphertext = cipher
-        .encrypt(nonce, Payload { msg: plaintext, aad: ASSOCIATED_DATA })
+        .encrypt(nonce, Payload { msg: plaintext, aad: &aad })
         .map_err(|_| EncryptionError::EncryptionFailed)?;
 
     Ok(EncryptedEnvelope {
@@ -72,7 +85,17 @@ pub fn decrypt(
     key: &DataKey,
     envelope: &EncryptedEnvelope,
 ) -> Result<Vec<u8>, EncryptionError> {
-    if envelope.format_version != FORMAT_VERSION
+    decrypt_with_aad(key, envelope, &[])
+}
+
+/// Authenticate and decrypt an envelope using the same external metadata
+/// supplied during encryption.
+pub fn decrypt_with_aad(
+    key: &DataKey,
+    envelope: &EncryptedEnvelope,
+    external_aad: &[u8],
+) -> Result<Vec<u8>, EncryptionError> {
+    if external_aad.len() > 64 * 1024 || envelope.format_version != FORMAT_VERSION
         || envelope.cipher != CIPHER_NAME
         || envelope.ciphertext.len() < 16
         || envelope.ciphertext.len() > MAX_PLAINTEXT_BYTES + 16
@@ -82,10 +105,13 @@ pub fn decrypt(
 
     let cipher = Aes256Gcm::new_from_slice(key.expose())
         .map_err(|_| EncryptionError::InvalidEnvelope)?;
+    let mut aad = Vec::with_capacity(ASSOCIATED_DATA.len() + external_aad.len());
+    aad.extend_from_slice(ASSOCIATED_DATA);
+    aad.extend_from_slice(external_aad);
     cipher
         .decrypt(
             Nonce::from_slice(&envelope.nonce),
-            Payload { msg: envelope.ciphertext.as_ref(), aad: ASSOCIATED_DATA },
+            Payload { msg: envelope.ciphertext.as_ref(), aad: &aad },
         )
         .map_err(|_| EncryptionError::AuthenticationFailed)
 }
