@@ -2,7 +2,7 @@
 
 use argon2::{
     Algorithm, Argon2, Params, Version,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier},
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use thiserror::Error;
 
@@ -40,8 +40,9 @@ pub fn hash_pin(pin: &[u8]) -> Result<String, PinError> {
         return Err(PinError::InvalidPinLength);
     }
     let argon2 = configured_argon2()?;
+    let salt = SaltString::generate(&mut OsRng);
     argon2
-        .hash_password(pin)
+        .hash_password(pin, &salt)
         .map(|hash| hash.to_string())
         .map_err(|_| PinError::HashingFailed)
 }
