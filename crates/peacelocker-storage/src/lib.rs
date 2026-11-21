@@ -5,7 +5,7 @@
 //! serialized document. Replacement uses a same-directory temporary file.
 
 mod legacy;
-pub use legacy::{LegacyImportReport, LegacySettings, parse_legacy_text};
+pub use legacy::{LegacyImportError, LegacyImportReport, LegacySettings, parse_legacy_text};
 
 use peacelocker_security::{
     DataKey, EncryptedEnvelope, EncryptionError, LockoutState, SecretError, decrypt_with_aad,
