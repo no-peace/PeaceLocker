@@ -89,6 +89,7 @@ impl Drop for ProcessMonitorService { fn drop(&mut self) { self.stop(); } }
 fn run_worker<F, E>(config: PollingConfig, poll: &mut F, sender: Sender<ProcessMonitorMessage>, stop: Arc<(Mutex<bool>, Condvar)>)
 where F: FnMut() -> Result<ProcessPollResult, E>, E: fmt::Display {
     let mut tracker = ProcessTracker::default();
+    let mut initialized = false;
     let mut failures = 0u32;
     loop {
         if is_stopped(&stop) { break; }
@@ -96,7 +97,12 @@ where F: FnMut() -> Result<ProcessPollResult, E>, E: fmt::Display {
             Ok(snapshot) => {
                 failures = 0;
                 let changes = tracker.update(snapshot.processes);
-                let message = if changes.is_empty() {
+                // The first snapshot establishes a baseline. Existing processes
+                // must not be misreported as newly launched after app startup.
+                let message = if !initialized {
+                    initialized = true;
+                    ProcessMonitorMessage::Healthy { inaccessible_count: snapshot.inaccessible_count }
+                } else if changes.is_empty() {
                     ProcessMonitorMessage::Healthy { inaccessible_count: snapshot.inaccessible_count }
                 } else {
                     ProcessMonitorMessage::Changes { changes, inaccessible_count: snapshot.inaccessible_count }
@@ -144,12 +150,20 @@ mod tests {
         let count = Arc::clone(&calls);
         let (mut service, receiver) = ProcessMonitorService::start(
             PollingConfig { interval: Duration::from_millis(10), max_backoff: Duration::from_millis(40) },
-            move || { count.fetch_add(1, Ordering::SeqCst); Ok::<_, &'static str>(ProcessPollResult { processes: vec![sample()], inaccessible_count: 0 }) },
+            move || {
+                let call = count.fetch_add(1, Ordering::SeqCst);
+                let processes = if call == 0 { vec![sample()] } else { vec![sample(), ProcessSnapshot {
+                    identity: crate::ProcessIdentity { pid: 45, creation_time_100ns: 2 },
+                    name: "new.exe".into(), executable_path: None,
+                }] };
+                Ok::<_, &'static str>(ProcessPollResult { processes, inaccessible_count: 0 })
+            },
         ).unwrap();
+        assert!(matches!(receiver.recv_timeout(Duration::from_secs(1)).unwrap(), ProcessMonitorMessage::Healthy { .. }));
         assert!(matches!(receiver.recv_timeout(Duration::from_secs(1)).unwrap(), ProcessMonitorMessage::Changes { .. }));
         service.stop();
         assert!(matches!(receiver.recv_timeout(Duration::from_secs(1)).unwrap(), ProcessMonitorMessage::Stopped));
-        assert!(calls.load(Ordering::SeqCst) >= 1);
+        assert!(calls.load(Ordering::SeqCst) >= 2);
     }
 
     #[test]
