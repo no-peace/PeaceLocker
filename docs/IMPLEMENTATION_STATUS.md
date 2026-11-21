@@ -57,6 +57,8 @@ Implementation committed:
 - [x] Refuse to overwrite an existing configuration that fails authentication/validation.
 - [x] Three-failure/six-hour PIN lockout policy and clock-rollback handling.
 - [x] Read-only parser for the legacy C++ key=value text format.
+- [x] Windows DPAPI importer for the legacy PVBIN01 binary container.
+- [x] Explicitly reject RAW plaintext fallback and report TPM-wrapped legacy files as unsupported.
 - [x] Import only reviewed non-credential settings; require a new Rust PIN.
 - [x] Tests added for persistence, tampering, backup/restore, lockout persistence, and legacy parsing.
 - [x] Phase 2 design and limitation notes added.
@@ -72,7 +74,8 @@ Not yet implemented:
 - [ ] Application data-directory resolver and ACL verification.
 - [ ] Wire the app to load and save ConfigDocument.
 - [ ] PIN setup/unlock/recovery UI.
-- [ ] Legacy encrypted vault_data.bin migration (legacy TPM/DPAPI wrapper handling needs a separate compatibility review).
+- [ ] Legacy TPM-wrapped vault migration (old persisted TPM key lifecycle needs separate compatibility work).
+- [ ] Migration preview UI and explicit confirmation before applying imported settings.
 - [ ] Migration preview and explicit confirmation.
 - [ ] Multi-process store locking and single-instance coordination.
 - [ ] Schema upgrade framework and multi-generation backup policy.
