@@ -175,14 +175,15 @@ Implement sources incrementally. Each source must report whether it is supported
 
 ### 4A. Process monitoring
 
-- [ ] Implement documented process enumeration/query APIs.
-- [ ] Track PID and process lifetime identity.
-- [ ] Handle PID reuse.
-- [ ] Distinguish access denied, exited, and query failure.
+- [x] Implement documented Tool Help process enumeration and limited-information process queries.
+- [x] Track PID and process lifetime identity using process creation FILETIME.
+- [x] Handle PID reuse by treating a changed creation time as exit plus start.
+- [x] Count inaccessible/query-failed processes separately from successfully inspected processes.
+- [ ] Distinguish access denied, exited-during-query, and other query failures with precise Win32 error codes.
 - [ ] Add configurable sampling/backoff where polling is required.
 - [ ] Prefer event-based process notifications where reliable.
-- [ ] Implement process rule matching.
-- [ ] Test process start/exit and race conditions.
+- [ ] Connect process changes to normalized core events and rule evaluation.
+- [x] Test process snapshot start/exit, unchanged snapshots, duplicate PIDs, and PID reuse in the platform-independent tracker.
 
 **Acceptance:** matching and non-matching process scenarios work; source failures are visible; no false healthy status.
 
