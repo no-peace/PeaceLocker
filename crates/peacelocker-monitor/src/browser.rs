@@ -23,7 +23,8 @@ pub fn normalize_browser_url(value: &str) -> Option<String> {
     if value.is_empty() || value.len() > 16_384 || value.chars().any(char::is_control) { return None; }
     let url = Url::parse(value).ok()?;
     if !matches!(url.scheme(), "http" | "https") || !url.username().is_empty() || url.password().is_some() { return None; }
-    let host = url.host_str()?.trim_end_matches('.').to_ascii_lowercase();
+    let raw_host = url.host_str()?.trim_end_matches('.');
+    let host = raw_host.strip_prefix('[').and_then(|value| value.strip_suffix(']')).unwrap_or(raw_host).to_ascii_lowercase();
     if host.is_empty() || host.len() > 253 || (host.parse::<std::net::IpAddr>().is_err() && !valid_dns_name(&host)) { return None; }
     Some(host)
 }
@@ -70,6 +71,7 @@ mod tests {
     #[test] fn url_normalization_keeps_only_http_hostname() {
         assert_eq!(normalize_browser_url("https://Example.COM:443/path?q=secret#fragment").as_deref(), Some("example.com"));
         assert_eq!(normalize_browser_url("http://127.0.0.1:8080/private").as_deref(), Some("127.0.0.1"));
+        assert_eq!(normalize_browser_url("http://[::1]:8080/private").as_deref(), Some("::1"));
     }
     #[test] fn rejects_non_web_urls_credentials_and_uncommitted_text() {
         for value in ["file:///C:/secret", "about:blank", "javascript:alert(1)", "example.com", "https://user:pass@example.com/", ""] {

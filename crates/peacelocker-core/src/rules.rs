@@ -128,6 +128,7 @@ fn path_is_same_or_child(rule: &str, observed: &str) -> bool {
 }
 
 fn is_valid_hostname(host: &str) -> bool {
+    if host.parse::<std::net::IpAddr>().is_ok() { return true; }
     if host.is_empty() || host.len() > 253 || !host.is_ascii() {
         return false;
     }
@@ -213,6 +214,12 @@ mod tests {
         for host in ["https://example.com", ".example.com", "example..com", "-bad.example", "bad-.example", "bad host"] {
             assert!(Rule::new(1, "host", RuleTargetKind::BrowserHost, host, RuleAction::Block).is_err(), "{host}");
         }
+    }
+
+    #[test]
+    fn browser_host_rules_accept_ip_addresses() {
+        assert!(Rule::new(2, "Local service", RuleTargetKind::BrowserHost, "127.0.0.1", RuleAction::Notify).is_ok());
+        assert!(Rule::new(3, "IPv6 service", RuleTargetKind::BrowserHost, "::1", RuleAction::Notify).is_ok());
     }
 
     #[test]
