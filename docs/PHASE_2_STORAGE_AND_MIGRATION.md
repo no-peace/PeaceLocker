@@ -46,7 +46,7 @@ The caller must save the updated document after each authentication result. This
 
 ### Legacy text import
 
-The read-only importer recognizes the legacy C++ DPAPI-protected binary container and key=value text format. It:
+The read-only importer recognizes the legacy C++ DPAPI-protected binary container and key=value text format. It imports:
 - startup preference;
 - Explorer shell-integration preference;
 - activity-logging preference;
@@ -81,10 +81,9 @@ The storage unit tests use a test-only key protector. It intentionally does not 
 - Application data-directory resolver and Windows ACL verification.
 - GUI PIN setup, unlock, and recovery screens.
 - Wiring the app to load/save the ConfigDocument.
-- Automatic migration of legacy encrypted vault_data.bin files.
-- TPM-wrapped legacy secret migration (old TPM key lifecycle is incompatible and must be treated separately).
+- Migration preview UI and explicit confirmation before applying imported settings.
+- TPM-wrapped legacy vault migration (the old persisted TPM key lifecycle needs separate compatibility work).
 - Legacy PIN verifier migration; user must set a new PIN.
-- Migration preview UI and explicit user confirmation.
 - Concurrent-process locking / single-instance coordination.
 - Multi-generation backup retention and backup rotation UI.
 - Schema migration from future versions.
