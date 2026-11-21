@@ -290,7 +290,9 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use peacelocker_security::{DataKey, hash_pin};
+    use peacelocker_security::{
+        DataKey, PinAuthOutcome, authenticate_pin, hash_pin,
+    };
 
     struct TestProtector;
 
@@ -337,6 +339,25 @@ mod tests {
         bytes[index] ^= 1;
         fs::write(&path, bytes).unwrap();
         assert!(store.load().is_err());
+    }
+
+    #[test]
+    fn lockout_state_survives_encrypted_store_round_trip() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        let store = EncryptedStore::new(&path, TestProtector);
+        let mut config = document();
+        let verifier = config.pin_verifier.clone();
+        let first = authenticate_pin(b"wrong", &verifier, &mut config.lockout, 2_000).unwrap();
+        assert_eq!(first, PinAuthOutcome::Rejected { attempts_remaining: 2 });
+        let second = authenticate_pin(b"wrong", &verifier, &mut config.lockout, 2_001).unwrap();
+        assert_eq!(second, PinAuthOutcome::Rejected { attempts_remaining: 1 });
+        let third = authenticate_pin(b"wrong", &verifier, &mut config.lockout, 2_002).unwrap();
+        assert_eq!(third, PinAuthOutcome::LockedOut { until_unix: 2_002 + 21_600 });
+        store.save(&config).unwrap();
+        let restored = store.load().unwrap();
+        assert_eq!(restored.lockout, config.lockout);
+        assert!(restored.lockout.is_locked_at(2_003));
     }
 
     #[test]
