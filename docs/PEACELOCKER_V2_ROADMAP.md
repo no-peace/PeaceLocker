@@ -142,19 +142,19 @@ Reliable encrypted persistence with a safe, testable migration path.
 
 ### Tasks
 
-- [ ] Define domain types for protection state, monitor health, rules, and events.
-- [ ] Define command/result types.
-- [ ] Define a central application state model.
-- [ ] Define deterministic state transitions.
-- [ ] Implement command validation.
-- [ ] Implement event normalization types.
-- [ ] Implement rules and target validation.
-- [ ] Separate rule matching from enforcement actions.
-- [ ] Define monitor source health reporting.
-- [ ] Define event IDs, timestamps, and correlation metadata.
-- [ ] Implement a bounded event dispatch abstraction.
-- [ ] Add fake monitor sources for tests.
-- [ ] Add tests for rule evaluation and duplicate events.
+- [x] Define domain types for protection state, monitor health, rules, and events.
+- [x] Define command/result types.
+- [x] Define a central application state model and immutable read snapshots.
+- [x] Define deterministic protection-state transitions and revision tracking.
+- [x] Implement typed command and rule validation.
+- [x] Implement normalized monitor event types.
+- [x] Implement process-name, executable-path, and browser-host rule validation.
+- [x] Separate deterministic rule matching from enforcement actions.
+- [x] Define typed monitor source health reporting.
+- [x] Define event IDs, timestamps, and correlation metadata.
+- [x] Implement a bounded event queue with an explicit drop-oldest overflow policy.
+- [ ] Add fake monitor source adapters for integration tests.
+- [x] Add tests for state transitions, rule evaluation, queue overflow, and duplicate queued events.
 
 ### Acceptance criteria
 
