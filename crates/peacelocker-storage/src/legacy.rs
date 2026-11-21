@@ -44,6 +44,7 @@ pub enum LegacyImportError {
     LineTooLarge,
     TooManyBlockedItems,
     InvalidBlockedEntry,
+    InvalidSetting,
 }
 
 impl std::fmt::Display for LegacyImportError {
@@ -53,6 +54,7 @@ impl std::fmt::Display for LegacyImportError {
             Self::LineTooLarge => "legacy configuration line exceeds 8 KiB",
             Self::TooManyBlockedItems => "legacy configuration contains too many blocked items",
             Self::InvalidBlockedEntry => "legacy blocked-item entry is malformed",
+            Self::InvalidSetting => "legacy boolean setting is malformed",
         };
         formatter.write_str(message)
     }
@@ -146,7 +148,6 @@ pub fn parse_legacy_text(input: &str) -> Result<LegacyImportReport, LegacyImport
         }
     }
 
-    report.credential_reset_required = true;
     Ok(report)
 }
 
@@ -154,7 +155,7 @@ fn parse_bool(value: &str) -> Result<bool, LegacyImportError> {
     match value {
         "1" => Ok(true),
         "0" => Ok(false),
-        _ => Err(LegacyImportError::InvalidBlockedEntry),
+        _ => Err(LegacyImportError::InvalidSetting),
     }
 }
 
