@@ -104,9 +104,6 @@ pub fn import_legacy_vault(path: &Path) -> Result<LegacyImportReport, LegacyVaul
     let text = std::str::from_utf8(&plaintext).map_err(|_| LegacyVaultError::InvalidUtf8)?;
     let mut report = parse_legacy_text(text)
         .map_err(|error| LegacyVaultError::InvalidLegacyText(error.to_string()))?;
-    report.warnings.push(
-        "Legacy HMAC was not trusted because the old format used a hardcoded key.".to_owned(),
-    );
     Ok(report)
 }
 
