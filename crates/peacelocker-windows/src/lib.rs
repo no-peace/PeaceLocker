@@ -8,6 +8,6 @@ mod dpapi;
 
 #[cfg(windows)]
 pub use dpapi::{
-    DpapiError, DpapiProtectedEnvelope, ProtectedStorageError, open_configuration,
+    DpapiError, DpapiKeyProtector, DpapiProtectedEnvelope, ProtectedStorageError, open_configuration,
     protect_data_key, seal_configuration, unprotect_data_key,
 };
