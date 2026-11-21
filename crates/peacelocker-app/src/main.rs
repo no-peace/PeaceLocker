@@ -58,6 +58,12 @@ struct PeaceLockerApp {
     browser_status: String,
     #[cfg(windows)]
     browser_last_host: String,
+    rule_label: String,
+    rule_target: String,
+    rule_kind: RuleTargetKind,
+    rule_action: peacelocker_core::RuleAction,
+    editing_rule_id: Option<u64>,
+    rule_error: Option<String>,
 }
 impl Default for PeaceLockerApp {
     fn default() -> Self {
@@ -79,11 +85,41 @@ impl Default for PeaceLockerApp {
             #[cfg(windows)] browser_tracker: peacelocker_monitor::BrowserTracker::default(),
             #[cfg(windows)] browser_status: "Not started".into(),
             #[cfg(windows)] browser_last_host: "No browser URL observed".into(),
+            rule_label: String::new(), rule_target: String::new(),
+            rule_kind: RuleTargetKind::ProcessName,
+            rule_action: peacelocker_core::RuleAction::Block,
+            editing_rule_id: None, rule_error: None,
         }
     }
 }
 
 impl PeaceLockerApp {
+    fn save_rule(&mut self) {
+        let label = self.rule_label.trim();
+        let target = self.rule_target.trim();
+        let id = self.editing_rule_id.unwrap_or_else(|| self.core.snapshot().rules.iter().map(|r| r.id).max().unwrap_or(0).saturating_add(1));
+        if id == 0 { self.rule_error = Some("Rule ID space is exhausted.".into()); return; }
+        match peacelocker_core::Rule::new(id, label, self.rule_kind, target, self.rule_action) {
+            Ok(rule) => {
+                let command = if self.editing_rule_id.is_some() { peacelocker_core::Command::ReplaceRule(rule) } else { peacelocker_core::Command::AddRule(rule) };
+                match self.core.execute(command) {
+                    Ok(_) => { self.rule_label.clear(); self.rule_target.clear(); self.editing_rule_id = None; self.rule_error = None; }
+                    Err(error) => self.rule_error = Some(error.to_string()),
+                }
+            }
+            Err(error) => self.rule_error = Some(error.to_string()),
+        }
+    }
+
+    fn begin_edit_rule(&mut self, rule: &peacelocker_core::Rule) {
+        self.editing_rule_id = Some(rule.id);
+        self.rule_label = rule.label.clone();
+        self.rule_target = rule.target.clone();
+        self.rule_kind = rule.target_kind;
+        self.rule_action = rule.action;
+        self.rule_error = None;
+    }
+
     fn handle_process_change(&mut self, change: peacelocker_monitor::ProcessChange) {
         let kind = match change.kind {
             peacelocker_monitor::ProcessChangeKind::Started => MonitorEventKind::ProcessStarted,
@@ -368,6 +404,62 @@ impl eframe::App for PeaceLockerApp {
                 ui.label(format!("Policy matches: {}", self.matched_rule_count));
                 if let Some(error) = &self.monitor_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
                 ui.label("Monitoring observes process metadata and Explorer folder locations. Policy matches are decisions only; nothing is suspended, terminated, or blocked.");
+            });
+            ui.add_space(16.0);
+            ui.add_space(16.0);
+            ui.group(|ui| {
+                ui.heading("Rule management");
+                ui.label("Create and maintain policy rules. Matches are currently informational only; no blocking or enforcement is performed.");
+                egui::Grid::new("rule_editor_grid").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                    ui.label("Rule name"); ui.text_edit_singleline(&mut self.rule_label); ui.end_row();
+                    ui.label("Target type");
+                    egui::ComboBox::from_id_salt("rule_target_kind").selected_text(match self.rule_kind {
+                        RuleTargetKind::ProcessName => "Process name", RuleTargetKind::ExecutablePath => "Executable path",
+                        RuleTargetKind::FolderPath => "Folder path", RuleTargetKind::BrowserHost => "Browser hostname",
+                    }).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ProcessName, "Process name");
+                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ExecutablePath, "Executable path");
+                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::FolderPath, "Folder path");
+                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::BrowserHost, "Browser hostname");
+                    }); ui.end_row();
+                    ui.label("Target");
+                    ui.add(egui::TextEdit::singleline(&mut self.rule_target).hint_text(match self.rule_kind {
+                        RuleTargetKind::ProcessName => "game.exe", RuleTargetKind::ExecutablePath => r"C:\\Games\\game.exe",
+                        RuleTargetKind::FolderPath => r"C:\\Private", RuleTargetKind::BrowserHost => "example.com",
+                    }).desired_width(360.0)); ui.end_row();
+                    ui.label("Action");
+                    egui::ComboBox::from_id_salt("rule_action").selected_text(match self.rule_action {
+                        peacelocker_core::RuleAction::Block => "Block (not enforced yet)", peacelocker_core::RuleAction::Notify => "Notify",
+                    }).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.rule_action, peacelocker_core::RuleAction::Block, "Block (not enforced yet)");
+                        ui.selectable_value(&mut self.rule_action, peacelocker_core::RuleAction::Notify, "Notify");
+                    }); ui.end_row();
+                });
+                ui.horizontal(|ui| {
+                    if ui.button(if self.editing_rule_id.is_some() { "Save changes" } else { "Add rule" }).clicked() { self.save_rule(); }
+                    if self.editing_rule_id.is_some() && ui.button("Cancel edit").clicked() {
+                        self.editing_rule_id = None; self.rule_label.clear(); self.rule_target.clear(); self.rule_error = None;
+                    }
+                });
+                if let Some(error) = &self.rule_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
+                ui.separator();
+                let rules = self.core.snapshot().rules;
+                if rules.is_empty() { ui.label("No rules configured."); }
+                for rule in rules {
+                    ui.horizontal_wrapped(|ui| {
+                        let mut enabled = rule.enabled;
+                        if ui.checkbox(&mut enabled, "").changed() {
+                            if let Err(error) = self.core.execute(peacelocker_core::Command::SetRuleEnabled { id: rule.id, enabled }) { self.rule_error = Some(error.to_string()); }
+                        }
+                        ui.label(egui::RichText::new(&rule.label).strong());
+                        ui.label(format!("{:?} · {} · {:?}", rule.target_kind, rule.target, rule.action));
+                        if ui.small_button("Edit").clicked() { self.begin_edit_rule(&rule); }
+                        if ui.small_button("Delete").clicked() {
+                            if let Err(error) = self.core.execute(peacelocker_core::Command::RemoveRule(rule.id)) { self.rule_error = Some(error.to_string()); }
+                            if self.editing_rule_id == Some(rule.id) { self.editing_rule_id = None; self.rule_label.clear(); self.rule_target.clear(); }
+                        }
+                    });
+                }
             });
             ui.add_space(16.0);
             ui.group(|ui| {
