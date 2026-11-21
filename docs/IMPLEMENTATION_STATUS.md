@@ -92,10 +92,10 @@ Implementation committed:
 - [x] Monitor health states for not-started, healthy, degraded, and unavailable.
 - [x] Normalized monitor event contract with IDs, timestamps, source, and correlation ID.
 - [x] Bounded in-memory event queue with drop-oldest overflow accounting and duplicate queued-ID rejection.
+- [x] Monitor adapter contract and deterministic fake source for integration tests.
 - [x] Unit tests added for transitions, invalid commands, matching, monitor health, queue capacity, and duplicates.
 
 Remaining:
-- [ ] Add fake monitor source adapters for integration tests.
 - [ ] Connect core commands and snapshots to the GUI (Phase 6).
 - [ ] Persist core state changes through the encrypted store (storage/application integration work).
 
