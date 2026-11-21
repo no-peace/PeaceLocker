@@ -50,7 +50,7 @@ pub enum Command {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandResult {
     StateChanged { revision: u64 }, NoChange { revision: u64 },
-    RuleAdded { revision: u64 }, RuleRemoved { revision: u64 },
+    RuleAdded { revision: u64 }, RuleUpdated { revision: u64 }, RuleRemoved { revision: u64 },
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -146,7 +146,7 @@ impl CoreEngine {
                 if !self.rules.contains_key(&rule.id) { return Err(CommandError::RuleNotFound); }
                 let revision = self.next_revision()?;
                 self.rules.insert(rule.id, rule); self.revision = revision;
-                Ok(CommandResult::RuleAdded { revision })
+                Ok(CommandResult::RuleUpdated { revision })
             }
             Command::SetRuleEnabled { id, enabled } => {
                 let Some(existing) = self.rules.get(&id) else { return Err(CommandError::RuleNotFound); };
