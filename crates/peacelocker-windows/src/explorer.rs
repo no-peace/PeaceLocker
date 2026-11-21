@@ -30,8 +30,6 @@ const CLSID_SHELL_WINDOWS: GUID = GUID::from_u128(0x9BA05972F6A811CFA44200A0C90A
 
 #[derive(Debug, Error)]
 pub enum ExplorerEnumerationError {
-    #[error("COM could not be initialized as a single-threaded apartment")]
-    ComInitialization,
     #[error("Shell window enumeration failed")]
     ShellEnumeration,
 }

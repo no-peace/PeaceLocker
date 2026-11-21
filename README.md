@@ -239,7 +239,7 @@ cargo test --workspace -- --nocapture
 5. Review the monitor status, inaccessible-process count, latest observed event and policy-match count.
 6. Select **Stop monitor** to stop polling.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports later folder navigation and new filesystem-backed Explorer windows. Virtual shell locations are ignored rather than inferred from window titles. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation/new filesystem windows. Virtual shell locations (for example, This PC) are ignored rather than guessed from window titles.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles.
 
 Important behavior:
 
