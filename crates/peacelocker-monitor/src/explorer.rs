@@ -72,15 +72,15 @@ mod tests {
     }
     #[test] fn folder_navigation_is_reported() {
         let mut t = ExplorerTracker::default();
-        t.update([obs(1, r"C:\\Data")]);
+        t.update([obs(1, r"C:\Data)]);
         let c = t.update([obs(1, r"C:\Data\Private")]);
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].previous_path.as_deref(), Some(r"c:\data"));
     }
     #[test] fn reused_hwnd_with_new_process_identity_is_new_window() {
         let mut t = ExplorerTracker::default();
-        t.update([obs(1, r"C:\\Data")]);
-        let mut replacement = obs(1, r"C:\\Data");
+        t.update([obs(1, r"C:\Data)]);
+        let mut replacement = obs(1, r"C:\Data);
         replacement.identity.process_creation_time_100ns += 1;
         assert_eq!(t.update([replacement]).len(), 1);
     }
