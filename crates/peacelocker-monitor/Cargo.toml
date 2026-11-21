@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 peacelocker-core = { path = "../peacelocker-core" }
 thiserror.workspace = true
+url.workspace = true

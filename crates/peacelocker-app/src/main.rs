@@ -264,6 +264,7 @@ impl PeaceLockerApp {
             match message {
                 peacelocker_windows::BrowserMonitorMessage::Snapshot(observation) => {
                     self.browser_status = "Healthy".into();
+                    self.browser_last_host = format!("{} · {}", observation.browser, observation.hostname);
                     let change = self.browser_tracker.update(Some(observation));
                     if let Some(change) = change { self.handle_browser_change(change); }
                 }

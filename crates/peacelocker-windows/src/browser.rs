@@ -1,11 +1,11 @@
 //! Read-only active-browser URL observer using Windows UI Automation.
 //! All COM objects are created, used and released on one dedicated STA worker.
 
-use std::{ffi::c_void, os::windows::ffi::OsStringExt, sync::mpsc::{self, Receiver, RecvTimeoutError, Sender}, thread::{self, JoinHandle}, time::Duration};
+use std::{os::windows::ffi::OsStringExt, sync::mpsc::{self, Receiver, RecvTimeoutError, Sender}, thread::{self, JoinHandle}, time::Duration};
 use peacelocker_monitor::{normalize_browser_url, BrowserObservation, BrowserWindowIdentity};
 use thiserror::Error;
 use windows::{
-    core::{Interface, VARIANT},
+    core::VARIANT,
     Win32::{
         System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED},
         UI::Accessibility::{CUIAutomation, IUIAutomation, IUIAutomationValuePattern, TreeScope_Descendants, UIA_AutomationIdPropertyId, UIA_ValuePatternId},

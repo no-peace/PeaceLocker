@@ -54,7 +54,7 @@ The following are not available as complete application workflows:
 - Connecting the GUI to the encrypted configuration store and persisted lockout service.
 - Migration preview, confirmation and complete migration orchestration.
 - Explorer folder enforcement.
-- Browser URL observation and enforcement.
+- Browser URL blocking/enforcement. The current observer only reports foreground hostnames.
 - Rule creation/editing UI and durable event history.
 - Process suspension, termination, filesystem access control or network filtering.
 - Automatic startup, tray integration, watchdog and Explorer context-menu integration from the legacy app.
