@@ -97,8 +97,13 @@ impl PeaceLockerApp {
     fn save_rule(&mut self) {
         let label = self.rule_label.trim();
         let target = self.rule_target.trim();
-        let id = self.editing_rule_id.unwrap_or_else(|| self.core.snapshot().rules.iter().map(|r| r.id).max().unwrap_or(0).saturating_add(1));
-        if id == 0 { self.rule_error = Some("Rule ID space is exhausted.".into()); return; }
+        let id = match self.editing_rule_id {
+            Some(id) => id,
+            None => match self.core.snapshot().rules.iter().map(|r| r.id).max() {
+                Some(max_id) => match max_id.checked_add(1) { Some(id) => id, None => { self.rule_error = Some("Rule ID space is exhausted.".into()); return; } },
+                None => 1,
+            },
+        };
         match peacelocker_core::Rule::new(id, label, self.rule_kind, target, self.rule_action) {
             Ok(rule) => {
                 let command = if self.editing_rule_id.is_some() { peacelocker_core::Command::ReplaceRule(rule) } else { peacelocker_core::Command::AddRule(rule) };
