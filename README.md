@@ -12,7 +12,7 @@ The original application is implemented in C++ and uses Win32 APIs. Its source r
 
 The Rust implementation is being developed on the `rewrite/rust-v2` branch.
 
-**Current status: Phase 2 — encrypted storage and legacy text-import implementation committed; validation pending.**
+**Current status: Phase 2 — encrypted storage and legacy DPAPI/text import implementation committed; validation pending.**
 
 The Rust track currently includes:
 - A Cargo workspace split into application, core, security, monitoring, storage, notifications, and Windows platform crates.
@@ -21,6 +21,9 @@ The Rust track currently includes:
 - AES-256-GCM authenticated encryption with a single-use data-key lifecycle.
 - Current-user Windows DPAPI key protection and a combined protected configuration envelope.
 - 128-bit one-time recovery-code generation and Argon2id verifiers.
+- Versioned encrypted configuration storage with fresh DEKs, DPAPI wrapping, atomic replacement, and a validated backup.
+- Persisted three-attempt/six-hour lockout policy.
+- Read-only legacy DPAPI/text importer for non-credential settings; legacy TPM-wrapped files are not yet supported.
 - Initial unit and Windows integration tests (written, not yet executed).
 
 The security, lockout, and encrypted-storage primitives are not yet integrated into the desktop UI. The legacy DPAPI importer is read-only; migration preview/confirmation and TPM-wrapped legacy import remain outstanding. Monitoring and enforcement are not implemented. Compilation, Clippy, tests, Windows runtime behavior, and independent security review are still pending. **Do not use the Rust rewrite to protect real data.**
