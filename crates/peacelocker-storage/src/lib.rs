@@ -5,7 +5,7 @@
 //! serialized document. Replacement uses a same-directory temporary file.
 
 use peacelocker_security::{
-    DataKey, EncryptedEnvelope, EncryptionError, LockoutState, decrypt_with_aad,
+    DataKey, EncryptedEnvelope, EncryptionError, LockoutState, SecretError, decrypt_with_aad,
     encrypt_with_aad,
 };
 use serde::{Deserialize, Serialize};
@@ -100,6 +100,8 @@ pub enum StoreError {
     Encryption(#[from] EncryptionError),
     #[error("platform key protection failed")]
     KeyProtection(#[from] KeyProtectionError),
+    #[error("secure random generation failed")]
+    Secret(#[from] SecretError),
     #[error("configuration schema or fields are invalid")]
     InvalidConfiguration,
     #[error("encrypted configuration envelope is invalid or unsupported")]
@@ -160,7 +162,7 @@ impl<P: KeyProtector> EncryptedStore<P> {
             return Err(StoreError::FileTooLarge);
         }
 
-        let key = DataKey::generate().map_err(|_| StoreError::KeyProtection(KeyProtectionError))?;
+        let key = DataKey::generate()?;
         let protected_dek = self.protector.protect_key(&key)?;
         if protected_dek.is_empty() || protected_dek.len() > MAX_PROTECTED_KEY_BYTES {
             return Err(StoreError::InvalidEnvelope);
