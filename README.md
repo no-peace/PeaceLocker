@@ -240,14 +240,16 @@ cargo test --workspace -- --nocapture
 5. Review the process monitor status, inaccessible-process count, latest event and policy-match count.
 6. Select **Start Explorer monitor** to observe filesystem-backed Explorer windows.
 7. Review Explorer monitor health and the number of observed filesystem windows.
-8. Use the corresponding **Stop** control to stop either worker.
+8. Select **Start browser monitor** to observe the foreground address bar in a supported browser.
+9. Review the detected browser and hostname; URL paths, queries and fragments are discarded.
+10. Use the corresponding **Stop** control to stop a worker.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads only known address-bar controls in the foreground window and stores hostnames only; it does not inspect page content or background tabs.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads only known address-bar controls in the foreground window, skips the address bar while it has keyboard focus, and stores hostnames only; it does not inspect page content or background tabs.
 
 Important behavior:
 
 - Monitoring is manual and opt-in; it does not start automatically.
-- The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only.
+- The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only. The browser observer reads a supported foreground browser address-bar value through UI Automation; it never writes to the browser UI.
 - Some processes may be inaccessible to query; the UI reports a count.
 - The current UI does not yet provide a rule editor, so the policy-match count will normally remain zero.
 - **No process is suspended, killed, or blocked.**

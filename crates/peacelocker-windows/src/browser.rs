@@ -47,15 +47,27 @@ impl BrowserMonitorService {
             };
             let mut failures = 0u32;
             let mut delay = interval;
+            let mut last_observation: Option<BrowserObservation> = None;
+            let mut last_was_supported = false;
+            let mut reported_no_browser = false;
             loop {
                 match enumerate_active_browser(&automation) {
                     Ok(Some(observation)) => {
                         failures = 0; delay = interval;
-                        if message_tx.send(BrowserMonitorMessage::Snapshot(observation)).is_err() { break; }
+                        let changed = last_observation.as_ref() != Some(&observation) || !last_was_supported;
+                        last_observation = Some(observation.clone());
+                        last_was_supported = true;
+                        reported_no_browser = false;
+                        if changed && message_tx.send(BrowserMonitorMessage::Snapshot(observation)).is_err() { break; }
                     }
                     Ok(None) => {
                         failures = 0; delay = interval;
-                        if message_tx.send(BrowserMonitorMessage::NoSupportedBrowser).is_err() { break; }
+                        last_observation = None;
+                        last_was_supported = false;
+                        if !reported_no_browser {
+                            reported_no_browser = true;
+                            if message_tx.send(BrowserMonitorMessage::NoSupportedBrowser).is_err() { break; }
+                        }
                     }
                     Err(_) => {
                         failures = failures.saturating_add(1);

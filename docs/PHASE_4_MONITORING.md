@@ -55,7 +55,7 @@ The Rust implementation must (the current adapter follows these constraints):
 
 - The browser observer runs on a dedicated COM STA worker and inspects only the foreground window.
 - It first verifies the foreground process image against a fixed browser allowlist: Chrome, Edge, Firefox, Brave, Vivaldi and Opera.
-- It reads only known browser address-bar AutomationIds via UI Automation ValuePattern. It does not scan arbitrary edit controls or page content. Password-marked controls are rejected.
+- It reads only known browser address-bar AutomationIds via UI Automation ValuePattern. It does not scan arbitrary edit controls or page content. Password-marked controls and address bars with keyboard focus (potentially uncommitted input) are rejected. Duplicate unchanged observations are suppressed.
 - Only committed HTTP(S) URLs are accepted. The URL is reduced immediately to a normalized hostname; credentials, path, query and fragment are not retained or sent to the event pipeline.
 - The first observation is a baseline; subsequent active-window or hostname changes become BrowserNavigated events and are evaluated against BrowserHost rules.
 - Monitoring is opt-in and has explicit Start/Stop controls. Unsupported foreground apps produce a waiting status.
