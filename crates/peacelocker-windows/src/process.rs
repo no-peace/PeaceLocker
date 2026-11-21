@@ -9,7 +9,7 @@ use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 use peacelocker_monitor::{ProcessIdentity, ProcessSnapshot};
 use thiserror::Error;
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, FILETIME, HANDLE},
+    Foundation::{CloseHandle, GetLastError, FILETIME, HANDLE, ERROR_NO_MORE_FILES},
     System::{
         Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
@@ -90,7 +90,12 @@ pub fn enumerate_processes() -> Result<ProcessEnumeration, ProcessEnumerationErr
 
         // SAFETY: same valid snapshot handle and writable structure as above.
         if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
-            break;
+            // ERROR_NO_MORE_FILES is the normal end-of-snapshot condition.
+            // Any other error means enumeration was incomplete.
+            if unsafe { GetLastError() } == ERROR_NO_MORE_FILES {
+                break;
+            }
+            return Err(ProcessEnumerationError::SnapshotEnumeration);
         }
     }
 
