@@ -9,7 +9,7 @@ use super::{BlockedItem, ConfigDocument, MAX_BLOCKED_ITEMS, StoreError};
 const MAX_LEGACY_BYTES: usize = 1024 * 1024;
 const MAX_LINE_BYTES: usize = 8 * 1024;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LegacySettings {
     pub auto_start: bool,
     pub shell_integration: bool,
@@ -30,7 +30,7 @@ impl Default for LegacySettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LegacyImportReport {
     pub settings: LegacySettings,
     pub credential_reset_required: bool,
@@ -226,12 +226,18 @@ mod tests {
 
     #[test]
     fn rejects_malformed_blocked_item() {
-        assert_eq!(parse_legacy_text("b=only-type\n"), Err(LegacyImportError::InvalidBlockedEntry));
+        assert!(matches!(
+            parse_legacy_text("b=only-type\n"),
+            Err(LegacyImportError::InvalidBlockedEntry)
+        ));
     }
 
     #[test]
     fn rejects_oversized_input() {
         let input = "x".repeat(MAX_LEGACY_BYTES + 1);
-        assert_eq!(parse_legacy_text(&input), Err(LegacyImportError::FileTooLarge));
+        assert!(matches!(
+            parse_legacy_text(&input),
+            Err(LegacyImportError::FileTooLarge)
+        ));
     }
 }
