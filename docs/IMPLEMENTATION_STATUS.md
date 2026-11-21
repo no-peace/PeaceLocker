@@ -4,19 +4,19 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 1 — security foundation implementation committed; validation pending.**
+**Phase 2 — encrypted storage and legacy text-import implementation committed; validation pending.**
 
 Branch: `rewrite/rust-v2`
 
 ## Phase 0 — workspace foundation
 
 Implemented:
-- [x] Created the Rust rewrite branch without changing `main`.
+- [x] Created the Rust rewrite branch without changing the legacy baseline.
 - [x] Created the Cargo workspace and seven crate boundaries.
 - [x] Added the initial egui desktop shell.
-- [x] Added a typed, platform-independent application snapshot and initial tests.
-- [x] Added Windows GitHub Actions workflow for formatting, Clippy, and tests.
-- [x] Added Rust development instructions and corrected the root README for the two-track repository.
+- [x] Added typed platform-independent application state and initial tests.
+- [x] Added a Windows GitHub Actions workflow for formatting, Clippy, and tests.
+- [x] Added Rust development instructions and clarified the two-track repository.
 
 Still unverified:
 - [ ] Workspace dependency resolution and compilation.
@@ -29,36 +29,58 @@ Still unverified:
 Implementation committed:
 - [x] Argon2id PIN verifier with random salt and bounded PHC parameters.
 - [x] CSPRNG-generated 256-bit data keys with zeroization.
-- [x] Single-use encryption key lifecycle (one encryption per generated key; restored keys are decrypt-only).
-- [x] AES-256-GCM authenticated envelope encryption with fixed and external associated data.
-- [x] Current-user DPAPI protection using isolated `windows-sys` calls.
+- [x] Single-use encryption key lifecycle.
+- [x] AES-256-GCM authenticated envelope encryption with associated data.
+- [x] Current-user DPAPI protection using isolated windows-sys calls.
 - [x] Combined DPAPI-wrapped DEK and authenticated configuration envelope.
 - [x] 128-bit single-use recovery-code generation and Argon2id verifiers.
-- [x] Unit and Windows integration tests added for the above behavior.
-- [x] Phase 1 design and implementation notes added.
+- [x] Unit and Windows integration tests added.
 
 Validation pending:
 - [ ] Cargo dependency resolution and compilation.
 - [ ] Rustfmt and Clippy.
-- [ ] Security crate tests executed.
-- [ ] Windows DPAPI integration tests executed on Windows.
+- [ ] Security tests executed.
+- [ ] Windows DPAPI integration tests executed.
 - [ ] Argon2id parameters benchmarked on minimum supported hardware.
 
-The GitHub Actions quota is currently exhausted, so no CI run was started for Phase 1. The execution environment used for this implementation does not have `rustc` or `cargo`, so no local compile/test result is claimed. Source-level review was performed, but this does not replace toolchain validation.
+## Phase 2 — encrypted storage and migration
 
-## Not yet implemented
+Implementation committed:
+- [x] Versioned configuration document with bounded fields and strict schema validation.
+- [x] Persist PIN verifier, recovery verifiers, lockout state, rules, preferences, and webhook configuration inside the encrypted document.
+- [x] Platform-neutral KeyProtector abstraction.
+- [x] Windows current-user DPAPI KeyProtector adapter.
+- [x] Fresh DEK per write and AES-GCM associated-data binding to the protected key blob.
+- [x] Bounded encrypted file reads and writes.
+- [x] Same-directory temporary-file replacement.
+- [x] One validated backup generation and explicit validated restore.
+- [x] Refuse to overwrite an existing configuration that fails authentication/validation.
+- [x] Three-failure/six-hour PIN lockout policy and clock-rollback handling.
+- [x] Read-only parser for the legacy C++ key=value text format.
+- [x] Import only reviewed non-credential settings; require a new Rust PIN.
+- [x] Tests added for persistence, tampering, backup/restore, lockout persistence, and legacy parsing.
+- [x] Phase 2 design and limitation notes added.
 
-- PIN setup/unlock UI integration.
-- Failed-attempt persistence and the three-attempt/six-hour lockout policy.
-- Recovery-code UI, persistence workflow, and regeneration confirmation.
-- Atomic configuration file storage, backups, and schema migration.
-- Legacy C++ configuration migration.
-- TPM-backed key protection.
-- Process, browser, or Explorer monitoring.
-- Rules engine and enforcement actions.
-- Discord notifications or webcam capture.
-- Tray, startup registration, and watchdog lifecycle.
+Validation pending:
+- [ ] Cargo dependency resolution and compilation.
+- [ ] Rustfmt and Clippy.
+- [ ] Storage/security tests executed.
+- [ ] Windows DPAPI-backed EncryptedStore integration test.
+- [ ] Atomic replacement and file ACL behavior verified on supported Windows versions.
+
+Not yet implemented:
+- [ ] Application data-directory resolver and ACL verification.
+- [ ] Wire the app to load and save ConfigDocument.
+- [ ] PIN setup/unlock/recovery UI.
+- [ ] Legacy encrypted vault_data.bin migration (legacy TPM/DPAPI wrapper handling needs a separate compatibility review).
+- [ ] Migration preview and explicit confirmation.
+- [ ] Multi-process store locking and single-instance coordination.
+- [ ] Schema upgrade framework and multi-generation backup policy.
+
+## Validation environment
+
+The GitHub Actions quota is exhausted, so no CI run was started. The execution environment does not have rustc or cargo, so no local compile/test result is claimed. The source has been reviewed manually, but that does not replace Cargo check, formatting, Clippy, or Windows runtime testing.
 
 ## Release warning
 
-The Rust rewrite is not production-ready. The security primitives are implementation work in progress and have not passed compilation, runtime, platform, or independent security review. Do not use this branch to protect real data. The legacy C++ implementation and `main` remain unchanged.
+The Rust rewrite is not production-ready. The code has not passed compilation, runtime, platform, or independent security review. Do not use this branch to protect real data. The legacy C++ implementation and default branch remain unchanged.
