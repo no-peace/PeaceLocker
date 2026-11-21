@@ -262,7 +262,7 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, StoreError> {
     if metadata.len() > MAX_ENVELOPE_BYTES {
         return Err(StoreError::FileTooLarge);
     }
-    let mut file = fs::File::open(path)?;
+    let file = fs::File::open(path)?;
     let mut bytes = Vec::with_capacity(metadata.len() as usize);
     file.take(MAX_ENVELOPE_BYTES + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > MAX_ENVELOPE_BYTES {
