@@ -33,7 +33,7 @@ impl BrowserMonitorService {
         let (stop_tx, stop_rx) = mpsc::channel();
         let (message_tx, message_rx) = mpsc::channel();
         let worker = thread::Builder::new().name("peacelocker-browser-uia".into()).spawn(move || {
-            if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok().is_err() {
+            if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
                 let _ = message_tx.send(BrowserMonitorMessage::Degraded("COM STA initialization failed".into()));
                 let _ = message_tx.send(BrowserMonitorMessage::Stopped); return;
             }
