@@ -334,12 +334,14 @@ impl eframe::App for PeaceLockerApp {
                 status_card(ui, "Protection", "Not configured", "PIN and encrypted storage are not connected to this UI");
                 #[cfg(windows)]
                 status_card(ui, "Process monitor", &self.process_monitor_status, "Read-only process metadata polling");
+                status_card(ui, "Explorer monitor", &self.explorer_status, "Read-only folder observation");
+                status_card(ui, "Browser monitor", &self.browser_status, "Foreground hostname only");
                 #[cfg(not(windows))]
                 status_card(ui, "Monitoring", "Unavailable", "Windows process monitoring is Windows-only");
             });
             ui.add_space(20.0);
             ui.group(|ui| {
-                ui.heading("Process monitoring");
+                ui.heading("Monitoring controls");
                 #[cfg(windows)]
                 {
                     ui.horizontal(|ui| {
