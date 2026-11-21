@@ -180,3 +180,23 @@ impl Drop for HandleGuard {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_process_is_present_in_process_snapshot() {
+        let current_pid = std::process::id();
+        let snapshot = enumerate_processes().expect("process snapshot should be available");
+        let current = snapshot
+            .processes
+            .iter()
+            .find(|process| process.identity.pid == current_pid)
+            .expect("the current process should be queryable");
+
+        assert_ne!(current.identity.creation_time_100ns, 0);
+        assert!(!current.name.is_empty());
+    }
+}
