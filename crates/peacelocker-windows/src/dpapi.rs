@@ -137,6 +137,26 @@ fn copy_and_free_output(output: CRYPT_INTEGER_BLOB) -> Result<Vec<u8>, DpapiErro
     Ok(bytes)
 }
 
+
+/// Current-user DPAPI implementation for the platform-neutral encrypted store.
+pub struct DpapiKeyProtector;
+
+impl peacelocker_storage::KeyProtector for DpapiKeyProtector {
+    fn protect_key(
+        &self,
+        key: &DataKey,
+    ) -> Result<Vec<u8>, peacelocker_storage::KeyProtectionError> {
+        protect_data_key(key).map_err(|_| peacelocker_storage::KeyProtectionError)
+    }
+
+    fn unprotect_key(
+        &self,
+        protected: &[u8],
+    ) -> Result<DataKey, peacelocker_storage::KeyProtectionError> {
+        unprotect_data_key(protected).map_err(|_| peacelocker_storage::KeyProtectionError)
+    }
+}
+
 /// A complete configuration envelope: an AEAD-encrypted payload plus a
 /// current-user DPAPI-wrapped DEK. Serialize this structure for persistence.
 #[derive(Clone, Debug, Serialize, Deserialize)]
