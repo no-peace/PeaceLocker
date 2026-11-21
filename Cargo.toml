@@ -29,4 +29,5 @@ argon2 = { version = "0.5", features = ["std"] }
 aes-gcm = "0.10"
 getrandom = "0.2"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
+tempfile = "3.15"
 
