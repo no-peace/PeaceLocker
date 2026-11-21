@@ -5,6 +5,11 @@
 
 #[cfg(windows)]
 mod dpapi;
+#[cfg(windows)]
+mod legacy_import;
+
+#[cfg(windows)]
+pub use legacy_import::{LegacyVaultError, import_legacy_vault};
 
 #[cfg(windows)]
 pub use dpapi::{
