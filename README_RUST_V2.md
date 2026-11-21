@@ -1,34 +1,50 @@
-# PeaceLocker 2.0 (Rust rewrite)
+# PeaceLocker 2.0 — Rust rewrite
 
-This is the new Rust implementation of PeaceLocker. It is being developed separately from the legacy C++ application.
+The Rust rewrite is developed separately from the legacy C++ application on the `rewrite/rust-v2` branch. The root [README.md](README.md) is the canonical guide for prerequisites, setup, build commands, running the desktop application, checks, current behavior and troubleshooting.
 
-## Current status
+> **Development warning:** this is not a production-ready security product. The GUI currently contains an egui shell and an opt-in, read-only Windows process monitor. Security and encrypted-storage primitives are not yet wired into the UI. Folder/browser monitoring and enforcement are not implemented. Compilation and runtime validation remain outstanding. Do not use this branch to protect real data.
 
-**Phase 3 — core state, command engine, rules, and bounded event queue committed; validation pending.**
+## Implemented foundations
 
-The workspace currently contains:
-- A Cargo workspace with application, core, security, monitoring, storage, notifications, and Windows platform crates.
-- A minimal egui desktop shell and platform-independent application snapshot.
-- Argon2id PIN verifier creation and bounded verification.
-- 256-bit CSPRNG data keys with zeroization and one-encryption-per-key enforcement.
-- AES-256-GCM authenticated envelopes with associated-data support.
-- Current-user DPAPI key wrapping and a combined protected configuration envelope.
-- 128-bit single-use recovery codes stored as Argon2id verifiers.
-- Versioned encrypted configuration store with fresh DEKs, DPAPI wrapping, atomic replacement, and a validated backup.
-- Persisted three-attempt/six-hour lockout policy with clock-rollback handling.
-- Read-only importer for non-credential settings from legacy DPAPI-wrapped vaults and text configs; TPM-wrapped files are not yet supported.
-- UI-independent command engine, typed protection transitions, monitor health, and immutable snapshots.
-- Validated process-name, executable-path, and browser-host rules with deterministic matching.
-- Normalized monitor event types and a bounded event queue with explicit overflow behavior.
-- Initial unit and Windows integration tests (not yet run).
+- Seven-crate Cargo workspace and egui desktop shell.
+- Platform-independent state, command and snapshot types.
+- Typed protection lifecycle and deterministic validated rule matching.
+- Normalized monitor event contracts and bounded event queue.
+- Argon2id PIN verifier creation/verification with bounded parameters.
+- AES-256-GCM authenticated encryption and single-use data-key primitives.
+- Current-user Windows DPAPI key protection.
+- 128-bit recovery-code generation and Argon2id verifiers.
+- Versioned encrypted configuration store with fresh data keys, atomic replacement and validated backup.
+- Persisted three-failure/six-hour lockout policy.
+- Read-only importer for supported legacy DPAPI-wrapped/text configuration; plaintext fallback is rejected and TPM-wrapped legacy import is not supported.
+- Windows process enumeration using documented query APIs.
+- Supervised, opt-in process polling connected to the desktop UI and core event evaluation.
 
-These are core, security, and storage foundations, not a completed application security workflow. The GUI is not yet wired to the core, store, or lockout service. Migration preview/confirmation and automatic migration orchestration are not implemented. Fake monitor adapters, real monitoring, and enforcement are not supported yet.
+## Current application behavior
 
-## Build on Windows
+On Windows, launch the application and use **Start process monitor** in the Process monitoring section. The first successful process snapshot is a baseline; later process starts/exits are sent through the normalized event queue and evaluated against configured core rules.
 
-Install the stable Rust toolchain with the `rustfmt` and `clippy` components, then run:
+The current UI has no rule editor, so matches normally remain zero. Process observation is read-only: the app does not suspend, terminate or block a process. The monitor can skip processes it cannot query without elevation.
+
+## Not implemented as user-facing workflows
+
+- PIN setup/unlock/change/recovery UI.
+- GUI integration with encrypted storage and persisted lockout.
+- Migration preview/confirmation and complete migration orchestration.
+- Explorer folder monitoring.
+- Browser URL monitoring.
+- Rule-management UI and durable event history.
+- Process, folder or website enforcement.
+- TPM protection, installer, signing and release packaging.
+
+## Build and run
+
+Install Rust stable (workspace minimum 1.85), `rustfmt`, `clippy`, Visual Studio Build Tools with Desktop development with C++, and a Windows SDK.
+
+From the repository root in PowerShell:
 
 ```powershell
+git switch rewrite/rust-v2
 cargo check --workspace
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
@@ -36,19 +52,26 @@ cargo test --workspace
 cargo run -p peacelocker-app
 ```
 
-## Design and implementation documents
+Build an optimized executable:
+
+```powershell
+cargo build --release -p peacelocker-app
+.\target\release\peacelocker-app.exe
+```
+
+See [README.md](README.md) for full setup, troubleshooting, usage details and the complete workspace map.
+
+## Design documents
 
 - [Architecture](docs/PEACELOCKER_V2_ARCHITECTURE.md)
 - [Security and privacy](docs/PEACELOCKER_V2_SECURITY.md)
-- [Implementation roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
-- [Phase 1 security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
-- [Phase 2 storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
-- [Phase 3 core engine](docs/PHASE_3_CORE_ENGINE.md)
-- [Phase 4 monitoring](docs/PHASE_4_MONITORING.md)
+- [Roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
+- [Phase 1 — security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
+- [Phase 2 — storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
+- [Phase 3 — core engine](docs/PHASE_3_CORE_ENGINE.md)
+- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
-## Important limitations
+## Validation
 
-The code has not yet been compiled or tested. DPAPI is current-user scoped; TPM protection is not implemented. Argon2id parameters still need hardware benchmarking. PIN lockout and encrypted storage primitives exist but are not wired into the GUI. The core rule engine only produces match decisions; it does not block processes, paths, or websites. Legacy TPM-wrapped vault migration, real monitoring, and enforcement remain unimplemented. Do not use this branch to protect real data.
-
-The legacy C++ implementation remains in the repository as a reference. Do not remove or overwrite it as part of the Rust rewrite.
+The environment used for this implementation did not have `cargo`/ `rustc`, and GitHub Actions quota was exhausted. Source changes and tests have been reviewed statically, but no successful compile, test, formatting or Clippy run is claimed. Windows runtime validation and independent security review are still required.
