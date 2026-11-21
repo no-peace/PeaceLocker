@@ -32,7 +32,7 @@ The Rust workspace currently contains these implemented foundations:
 |---|---|
 | Desktop shell | Native egui/eframe application |
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
-| Rules | Validated process-name, executable-path, browser-host and folder-path rule types; deterministic matching |
+| Rules | Validated process-name, executable-path, browser-host and folder-path rules; in-memory UI for create, edit, enable/disable and delete |
 | Event handling | Typed monitor events and bounded event queue |
 | Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | Browser observation | STA UI Automation worker; foreground supported-browser address-bar only; hostname-only events |
