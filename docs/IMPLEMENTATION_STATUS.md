@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 5 — Rule-management UI connected to the core rule commands; runtime validation pending.**
+**Phase 6 — Typed rules are now part of the encrypted configuration schema; desktop persistence wiring remains blocked on PIN setup/unlock.**
 
 Branch: `rewrite/rust-v2`
 
@@ -22,9 +22,9 @@ Validation pending: compilation, formatting, Clippy, security tests, DPAPI integ
 
 ## Phase 2 — encrypted storage and migration
 
-Implemented: versioned encrypted configuration document, fresh DEK per write, DPAPI-protected key, authenticated envelope, bounded I/O, atomic replacement, validated backup/restore, lockout state, read-only legacy text parser, DPAPI legacy importer, and rejection of plaintext fallback.
+Implemented: versioned encrypted configuration document, fresh DEK per write, DPAPI-protected key, authenticated envelope, bounded I/O, atomic replacement, validated backup/restore, lockout state, typed validated rule collection with backward-compatible default for older schema-v1 files, read-only legacy text parser, DPAPI legacy importer, and rejection of plaintext fallback.
 
-Remaining: application data-directory/ACL handling, app/store integration, PIN and recovery UI, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
+Remaining: application data-directory/ACL handling, desktop app/store integration, PIN and recovery UI, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
 
 ## Phase 3 — core state, commands, and rules engine
 
@@ -62,7 +62,8 @@ Remaining:
 - [ ] Add live Windows integration tests.
 - [ ] Validate address-bar AutomationIds and UI Automation behavior on supported browser versions.
 - [x] Add rule-management UI for process names, executable paths, folder paths and browser hostnames; support create, edit, enable/disable and delete through validated core commands.
-- [ ] Persist rule changes through the encrypted configuration store.
+- [x] Add typed, bounded rule records to the encrypted configuration document; validate each rule and reject duplicate IDs.
+- [ ] Load and save editor changes through the encrypted store in the desktop app (requires first-run PIN setup/unlock flow).
 - [ ] Add durable event history.
 
 ## Documentation
