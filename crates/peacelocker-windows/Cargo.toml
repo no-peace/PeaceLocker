@@ -13,5 +13,6 @@ windows-sys = { version = "0.59", features = [
 
 [dependencies]
 peacelocker-security = { path = "../peacelocker-security" }
+peacelocker-storage = { path = "../peacelocker-storage" }
 serde.workspace = true
 thiserror.workspace = true
