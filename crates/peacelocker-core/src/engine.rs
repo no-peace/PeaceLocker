@@ -96,7 +96,8 @@ impl CoreEngine {
     pub fn evaluate_event(&self, event: &MonitorEvent) -> Vec<RuleMatch> {
         let actionable = matches!((event.source, event.kind),
             (MonitorSource::Process, MonitorEventKind::ProcessStarted)
-            | (MonitorSource::Explorer, MonitorEventKind::ExplorerChanged));
+            | (MonitorSource::Explorer, MonitorEventKind::ExplorerChanged)
+            | (MonitorSource::Browser, MonitorEventKind::BrowserNavigated));
         if !actionable { return Vec::new(); }
         self.matching_rules(&event.target).into_iter().map(|rule| RuleMatch {
             event_id: event.id, rule_id: rule.id, label: rule.label.clone(), action: rule.action,
@@ -230,6 +231,17 @@ mod tests {
         let matches = engine.evaluate_event(&event);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].rule_id, 8);
+    }
+
+    #[test]
+    fn browser_navigation_events_match_host_rules() {
+        let mut engine = CoreEngine::new();
+        let browser_rule = Rule::new(12, "Distracting site", RuleTargetKind::BrowserHost, "example.com", RuleAction::Notify).unwrap();
+        engine.execute(Command::AddRule(browser_rule)).unwrap();
+        let event = MonitorEvent { id: 46, occurred_at_unix_ms: 1_800_000_000_000, source: MonitorSource::Browser,
+            kind: MonitorEventKind::BrowserNavigated, correlation_id: Some(11),
+            target: ObservedTarget::new(RuleTargetKind::BrowserHost, "EXAMPLE.COM") };
+        assert_eq!(engine.evaluate_event(&event).len(), 1);
     }
 
     #[test]

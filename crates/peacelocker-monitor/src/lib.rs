@@ -3,7 +3,9 @@
 use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus};
 mod process;
 mod explorer;
+mod browser;
 mod service;
+pub use browser::{BrowserChange, BrowserObservation, BrowserTracker, BrowserWindowIdentity, normalize_browser_url};
 pub use explorer::{ExplorerChange, ExplorerObservation, ExplorerTracker, ExplorerWindowIdentity};
 pub use process::{ProcessChange, ProcessChangeKind, ProcessIdentity, ProcessSnapshot, ProcessTracker};
 pub use service::{PollingConfig, PollingConfigError, PollingStartError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult};
