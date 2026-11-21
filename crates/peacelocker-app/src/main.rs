@@ -39,7 +39,7 @@ impl eframe::App for PeaceLockerApp {
                 ui.heading("PeaceLocker");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
-                        egui::RichText::new("RUST V2 · PHASE 2")
+                        egui::RichText::new("RUST V2 · PHASE 3")
                             .small()
                             .color(egui::Color32::from_rgb(117, 190, 140)),
                     );
@@ -92,7 +92,7 @@ impl eframe::App for PeaceLockerApp {
             ui.add_space(24.0);
             ui.group(|ui| {
                 ui.heading("Implementation status");
-                ui.label("Phase 2 security and storage foundations exist, but this desktop shell is not connected to them yet.");
+                ui.label("Phase 3 core state, command, rule, and event foundations exist. The desktop shell is not connected to the core or encrypted store yet.");
                 ui.label(
                     "No monitoring, webcam capture, network reporting, or enforcement is active.",
                 );
