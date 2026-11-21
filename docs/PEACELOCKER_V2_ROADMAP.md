@@ -31,7 +31,8 @@
 - [ ] Add live Windows process-monitor integration tests.
 - [x] Browser URL detection and supported-browser UI Automation adapters (runtime/browser-version validation pending).
 - [x] In-memory rule-management UI for create, edit, enable/disable and delete.
-- [ ] Persist rule changes through encrypted storage.
+- [x] Extend the encrypted configuration document with typed, validated, bounded rule records; retain compatibility with older schema-v1 documents that omit the new field.
+- [ ] Wire desktop startup and rule mutations to the encrypted store after PIN setup/unlock is available.
 - [ ] Durable event history.
 
 The process monitor is opt-in and read-only. Rule matches are decisions only;
