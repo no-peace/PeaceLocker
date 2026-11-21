@@ -145,10 +145,17 @@ pub fn parse_legacy_text(input: &str) -> Result<LegacyImportReport, LegacyImport
                 if report.settings.blocked_items.len() >= MAX_BLOCKED_ITEMS {
                     return Err(LegacyImportError::TooManyBlockedItems);
                 }
-                let mut parts = value.splitn(3, '|');
-                let target_type = parts.next().unwrap_or_default();
-                let item_value = parts.next().unwrap_or_default();
-                let label = parts.next().unwrap_or_default();
+                let first_separator = value.find('|');
+                let last_separator = value.rfind('|');
+                let (Some(first), Some(last)) = (first_separator, last_separator) else {
+                    return Err(LegacyImportError::InvalidBlockedEntry);
+                };
+                if first == last {
+                    return Err(LegacyImportError::InvalidBlockedEntry);
+                }
+                let target_type = &value[..first];
+                let item_value = &value[first + 1..last];
+                let label = &value[last + 1..];
                 if target_type.is_empty()
                     || target_type.len() > 32
                     || item_value.is_empty()
