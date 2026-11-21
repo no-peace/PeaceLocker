@@ -42,7 +42,7 @@ pub trait KeyProtector {
     fn unprotect_key(&self, protected: &[u8]) -> Result<DataKey, KeyProtectionError>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct BlockedItem {
     pub target_type: String,
