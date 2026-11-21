@@ -46,14 +46,14 @@ The caller must save the updated document after each authentication result. This
 
 ### Legacy text import
 
-The read-only parser recognizes the legacy C++ key=value text format:
+The read-only importer recognizes the legacy C++ DPAPI-protected binary container and key=value text format. It:
 - startup preference;
 - Explorer shell-integration preference;
 - activity-logging preference;
 - HTTPS webhook URL;
 - blocked-item records.
 
-It deliberately ignores legacy credential material:
+The importer supports the legacy DPAPI wrapper. TPM-wrapped files are reported as unsupported because they depend on the old persisted TPM key. RAW plaintext fallback is rejected. The source file is never modified or deleted. The legacy HMAC is not trusted because its key was hardcoded. The importer deliberately ignores legacy credential material:
 - SHA-256/PBKDF2 PIN verifier fields;
 - legacy pepper and DPAPI/TPM blobs;
 - legacy recovery hashes;
