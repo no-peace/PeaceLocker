@@ -4,7 +4,7 @@
 //! peppers, recovery hashes, and the legacy HMAC are not compatible with the
 //! Rust security model. The user must establish a new Rust PIN.
 
-use super::{BlockedItem, MAX_BLOCKED_ITEMS};
+use super::{BlockedItem, ConfigDocument, MAX_BLOCKED_ITEMS, StoreError};
 
 const MAX_LEGACY_BYTES: usize = 1024 * 1024;
 const MAX_LINE_BYTES: usize = 8 * 1024;
@@ -61,6 +61,19 @@ impl std::fmt::Display for LegacyImportError {
 }
 
 impl std::error::Error for LegacyImportError {}
+
+impl LegacyImportReport {
+    /// Apply the reviewed, non-credential settings to a newly initialized Rust
+    /// document. A fresh Rust PIN verifier must already be present.
+    pub fn apply_to(&self, document: &mut ConfigDocument) -> Result<(), StoreError> {
+        document.auto_start = self.settings.auto_start;
+        document.shell_integration = self.settings.shell_integration;
+        document.activity_logging_enabled = self.settings.activity_logging_enabled;
+        document.webhook_url = self.settings.webhook_url.clone();
+        document.blocked_items = self.settings.blocked_items.clone();
+        document.validate()
+    }
+}
 
 /// Parse only safe, non-credential settings from legacy plaintext key=value
 /// data. Does not read files, decrypt legacy binary containers, or mutate input.
