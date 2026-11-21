@@ -310,6 +310,7 @@ impl eframe::App for PeaceLockerApp {
         self.drain_process_messages();
         #[cfg(windows)]
         self.drain_explorer_messages();
+        #[cfg(windows)]
         self.drain_browser_messages();
 
         egui::TopBottomPanel::top("top_bar").show(context, |ui| {

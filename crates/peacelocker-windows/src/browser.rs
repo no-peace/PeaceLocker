@@ -101,6 +101,8 @@ fn enumerate_active_browser(automation: &IUIAutomation) -> Result<Option<Browser
         let condition = unsafe { automation.CreatePropertyCondition(UIA_AutomationIdPropertyId, &VARIANT::from(*id)) }.map_err(|_| ())?;
         let element = match unsafe { root.FindFirst(TreeScope_Descendants, &condition) } { Ok(element) => element, Err(_) => continue };
         if unsafe { element.CurrentIsPassword() }.map(|value| value.0 != 0).unwrap_or(true) { continue; }
+        // If the address bar has keyboard focus, its value may be uncommitted user input.
+        if unsafe { element.CurrentHasKeyboardFocus() }.map(|value| value.0 != 0).unwrap_or(true) { continue; }
         let pattern: IUIAutomationValuePattern = match unsafe { element.GetCurrentPatternAs(UIA_ValuePatternId) } {
             Ok(pattern) => pattern, Err(_) => continue,
         };
