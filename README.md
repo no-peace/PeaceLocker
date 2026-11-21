@@ -40,7 +40,7 @@ The Rust workspace currently contains these implemented foundations:
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |
 | Recovery | 128-bit recovery-code generation and Argon2id verifiers |
-| Encrypted storage | Versioned encrypted configuration envelope, fresh data key per save, atomic replacement and validated backup |
+| Encrypted storage | Versioned encrypted configuration envelope, fresh data key per save, atomic replacement, validated backup and typed validated rule records in the schema |
 | Lockout | Persisted three-failure/six-hour lockout policy with clock rollback handling |
 | Legacy import | Read-only import of supported legacy DPAPI-wrapped/text configuration; plaintext fallback and TPM-wrapped import are rejected/not supported |
 | Process monitoring | Opt-in Windows process enumeration, supervised polling, baseline snapshot and lifecycle events |
@@ -56,7 +56,7 @@ The following are not available as complete application workflows:
 - Migration preview, confirmation and complete migration orchestration.
 - Explorer folder enforcement.
 - Browser URL blocking/enforcement. The current observer only reports foreground hostnames.
-- Persisting rule changes through the encrypted store and durable event history.
+- Loading/saving rule changes through the encrypted store from the desktop UI (typed rule storage is implemented, but app integration awaits PIN setup/unlock). Durable event history.
 - Process suspension, termination, filesystem access control or network filtering.
 - Automatic startup, tray integration, watchdog and Explorer context-menu integration from the legacy app.
 - TPM-backed key protection and TPM-wrapped legacy vault migration.
@@ -291,7 +291,7 @@ PeaceLocker/
 
 ## Configuration and data
 
-The current UI does not yet create or load a user configuration. The encrypted-storage crate provides library-level storage primitives, but the desktop application has not connected them to a data directory or first-run setup.
+The encrypted-storage crate now supports typed rule records inside the encrypted configuration document. The desktop UI still does not create or load a user configuration: app integration depends on a first-run PIN setup/unlock workflow and a safe application data-directory resolver.
 
 When the storage workflow is integrated, the intended design is:
 
