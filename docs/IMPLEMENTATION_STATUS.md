@@ -3,7 +3,7 @@
 Last updated: 2026-11-21
 
 ## Current milestone
-**Phase 4 — supervised process polling foundation committed; Windows integration, Explorer/browser sources, and runtime validation pending.**
+**Phase 4 — Windows process monitoring connected to the desktop UI and core rule evaluation; Explorer/browser sources and runtime validation pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -29,24 +29,23 @@ Implemented:
 - [x] PID reuse detection using process creation FILETIME.
 - [x] Windows process enumeration using documented Tool Help and query APIs.
 - [x] Query-only handles and RAII cleanup.
-- [x] Supervised polling worker with configurable interval.
-- [x] Cancellation-aware shutdown and worker join.
-- [x] Exponential retry backoff with configured cap.
-- [x] Explicit healthy, degraded, process-change, and stopped messages.
-- [x] Typed monitor event kinds for process lifecycle, browser navigation, and Explorer changes.
-- [x] Tests added for tracker behavior, polling, cancellation, retry reporting, and backoff.
+- [x] Supervised polling worker with cancellation and joined shutdown.
+- [x] Capped exponential retry backoff and explicit degraded health messages.
+- [x] Windows enumeration connected to opt-in desktop worker.
+- [x] Process lifecycle changes converted into normalized events.
+- [x] Core engine evaluates process-start events against configured rules.
+- [x] UI displays monitor health and offers explicit start/stop controls.
+- [x] No enforcement action is taken by process rule matches.
 
 Remaining:
 - [ ] Classify per-process Win32 errors precisely.
-- [ ] Connect Windows enumeration to the worker in the app composition root.
-- [ ] Convert process messages into normalized core events and evaluate rules.
 - [ ] Add live Windows integration tests.
 - [ ] Implement Explorer monitoring with COM ownership.
 - [ ] Implement browser URL monitoring/UI Automation.
-- [ ] Surface source health and diagnostics in the UI.
+- [ ] Add rule-management UI and durable event history.
 
 ## Validation environment
-The GitHub Actions quota is exhausted, so no CI run was started. The execution environment does not have rustc or cargo, so no local compile/test result is claimed. The source has been reviewed manually, but this does not replace Cargo check, formatting, Clippy, or Windows runtime testing.
+No CI run was started because GitHub Actions quota is exhausted. The execution environment has no rustc or cargo, so no local compile/test result is claimed. Source review does not replace Cargo check, formatting, Clippy, or Windows runtime testing.
 
 ## Release warning
 The Rust rewrite is not production-ready. It has not passed compilation, runtime, platform, or independent security review. Do not use this branch to protect real data. The legacy C++ implementation and default branch remain unchanged.

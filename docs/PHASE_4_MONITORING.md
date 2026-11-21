@@ -1,29 +1,35 @@
-# Phase 4 — Monitoring Sources (Supervised Process Polling)
+# Phase 4 — Windows process monitoring integration
 
-## Scope
-This iteration adds a reusable supervised polling worker around the platform-independent process tracker. It remains only the process-monitoring slice of Phase 4.
+## Implemented in this increment
 
-## Process polling worker
-The monitor crate now provides a configurable non-zero polling interval, capped exponential retry backoff, a named worker thread, cancellation via condition variable, joined shutdown, and explicit messages for process changes, healthy snapshots, degraded polling, and shutdown. The worker accepts a polling closure so it can be tested without Win32 dependencies; the Windows adapter can supply `enumerate_processes()`.
+- The Windows process enumerator is now supplied to the supervised polling service by the desktop application.
+- The desktop UI has explicit Start/Stop controls; monitoring does not start automatically.
+- Process start/exit changes are converted into normalized core events with process-name and, when available, executable-path targets.
+- Events enter a bounded core event queue and are evaluated against configured rules in stable rule-ID order.
+- Core evaluation only reports policy matches. It does not suspend, terminate, or block processes.
+- The UI reports monitor health, inaccessible-process count, latest event, and number of policy matches.
 
-## Event contract
-Normalized events now carry a typed `MonitorEventKind` for ordinary observations, process starts/exits, browser navigation, and Explorer changes. Process lifecycle messages are not yet converted into queued core events or rule decisions.
+## Rule evaluation semantics
+
+Only process-start events are considered actionable policy observations. Process-exit events are retained as lifecycle information but do not produce block/notify matches. Rule matching is exact and case-insensitive for process names and normalized Windows paths for executable paths.
 
 ## Safety boundaries
-- The worker observes process metadata only; it does not suspend, terminate, or modify processes.
-- Cancellation and thread joining are explicit.
-- Failed polls are reported as degraded and retried, not treated as empty healthy snapshots.
-- Retry delay is capped.
-- Health diagnostics must not contain raw paths or secrets.
+
+- Process polling is opt-in via the UI and has an explicit stop control.
+- Windows process handles are query-only.
+- No elevation is requested.
+- The app does not take enforcement action based on a matching rule.
+- No raw paths are written into monitor diagnostic error codes.
 
 ## Remaining Phase 4 work
-- Classify Win32 errors (access denied, process-exit races, other).
-- Connect Windows enumeration to the worker in the application composition root.
-- Convert process changes into normalized core events and evaluate rules.
-- Add timestamp/ID provider and bounded event bridge.
-- Implement Explorer monitoring with correct COM apartment ownership.
+
+- Classify Win32 errors precisely (access denied, process-exit races, other).
+- Improve event queue draining and event history presentation.
+- Add rule-management UI and persist rule configuration.
+- Implement Explorer folder monitoring with COM apartment ownership.
 - Implement supported-browser URL detection and UI Automation adapters.
-- Surface monitor health and diagnostics in the UI.
+- Add live Windows integration tests and validate cancellation under slow API calls.
 
 ## Validation
-Tests have been added but not run. Rust compilation, formatting, Clippy, and Windows runtime checks remain outstanding because the current environment has no Rust toolchain and GitHub Actions quota is exhausted.
+
+Tests are added but not run. Compilation, formatting, Clippy, and Windows runtime checks remain outstanding because the environment has no Rust toolchain and the GitHub Actions quota is exhausted.

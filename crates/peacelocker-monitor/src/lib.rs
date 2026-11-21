@@ -4,7 +4,7 @@ use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus
 mod process;
 mod service;
 pub use process::{ProcessChange, ProcessChangeKind, ProcessIdentity, ProcessSnapshot, ProcessTracker};
-pub use service::{PollingConfig, PollingConfigError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult, PollingStartError};
+pub use service::{PollingConfig, PollingConfigError, PollingStartError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult};
 
 pub trait MonitorAdapter: Send {
     fn source(&self) -> MonitorSource;
@@ -14,7 +14,6 @@ pub trait MonitorAdapter: Send {
 
 #[derive(Debug)]
 pub struct FakeMonitorAdapter { source: MonitorSource, status: MonitorStatus, events: Vec<MonitorEvent> }
-
 impl FakeMonitorAdapter {
     pub fn new(source: MonitorSource) -> Self {
         Self { source, status: MonitorStatus { health: MonitorHealth::NotStarted, last_success_unix_ms: None, detail_code: None }, events: Vec::new() }
@@ -38,8 +37,7 @@ mod tests {
         assert_eq!(adapter.status().health, MonitorHealth::NotStarted);
         adapter.set_status(MonitorStatus { health: MonitorHealth::Healthy, last_success_unix_ms: Some(1_800_000_000_000), detail_code: None });
         adapter.push_event(MonitorEvent { id: 1, occurred_at_unix_ms: 1_800_000_000_000, source: MonitorSource::Process,
-            kind: MonitorEventKind::ProcessStarted, correlation_id: Some(99),
-            target: ObservedTarget::new(RuleTargetKind::ProcessName, "game.exe") });
+            kind: MonitorEventKind::ProcessStarted, correlation_id: Some(99), target: ObservedTarget::new(RuleTargetKind::ProcessName, "game.exe") });
         assert_eq!(adapter.source(), MonitorSource::Process);
         assert_eq!(adapter.status().health, MonitorHealth::Healthy);
         assert_eq!(adapter.drain_events().len(), 1);
