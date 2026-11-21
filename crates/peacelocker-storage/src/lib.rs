@@ -7,6 +7,7 @@
 mod legacy;
 pub use legacy::{LegacyImportError, LegacyImportReport, LegacySettings, parse_legacy_text};
 
+use peacelocker_core::Rule;
 use peacelocker_security::{
     DataKey, EncryptedEnvelope, EncryptionError, LockoutState, SecretError, decrypt_with_aad,
     encrypt_with_aad, validate_pin_verifier,
@@ -28,6 +29,7 @@ const MAX_ENVELOPE_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_PROTECTED_KEY_BYTES: usize = 64 * 1024;
 const MAX_RECOVERY_VERIFIERS: usize = 16;
 const MAX_BLOCKED_ITEMS: usize = 2_048;
+const MAX_RULES: usize = 2_048;
 const CONFIG_AAD: &[u8] = b"PeaceLocker/configuration-store/v1";
 
 #[derive(Debug, Error)]
@@ -65,6 +67,9 @@ pub struct ConfigDocument {
     pub activity_logging_enabled: bool,
     pub webhook_url: Option<String>,
     pub blocked_items: Vec<BlockedItem>,
+    /// Validated application rules. Missing in older schema-v1 documents is treated as empty.
+    #[serde(default)]
+    pub rules: Vec<Rule>,
 }
 
 impl ConfigDocument {
@@ -82,6 +87,7 @@ impl ConfigDocument {
             activity_logging_enabled: false,
             webhook_url: None,
             blocked_items: Vec::new(),
+            rules: Vec::new(),
         }
     }
 
@@ -98,6 +104,9 @@ impl ConfigDocument {
                 url.len() > 2_048 || !url.starts_with("https://")
             })
             || self.blocked_items.len() > MAX_BLOCKED_ITEMS
+            || self.rules.len() > MAX_RULES
+            || self.rules.iter().any(|rule| rule.validate().is_err())
+            || self.rules.iter().map(|rule| rule.id).collect::<std::collections::BTreeSet<_>>().len() != self.rules.len()
             || self.blocked_items.iter().any(|item| {
                 item.target_type.is_empty()
                     || item.target_type.len() > 32
@@ -290,6 +299,7 @@ mod tests {
     use peacelocker_security::{
         DataKey, PinAuthOutcome, authenticate_pin, hash_pin,
     };
+    use peacelocker_core::{Rule, RuleAction, RuleTargetKind};
 
     struct TestProtector;
 
@@ -323,6 +333,43 @@ mod tests {
         store.save(&second).unwrap();
         assert!(store.load().unwrap() == second);
         assert!(store.load_backup().unwrap() == first);
+    }
+
+    #[test]
+    fn encrypted_store_round_trips_typed_rules() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = EncryptedStore::new(directory.path().join("config.json"), TestProtector);
+        let mut config = document();
+        let mut rule = Rule::new(7, "Distracting site", RuleTargetKind::BrowserHost,
+            "example.com", RuleAction::Notify).unwrap();
+        rule.enabled = false;
+        config.rules.push(rule.clone());
+        store.save(&config).unwrap();
+        assert_eq!(store.load().unwrap().rules, vec![rule]);
+    }
+
+    #[test]
+    fn older_schema_v1_documents_default_to_no_rules() {
+        let mut value = serde_json::to_value(document()).unwrap();
+        value.as_object_mut().unwrap().remove("rules");
+        let restored: ConfigDocument = serde_json::from_value(value).unwrap();
+        assert!(restored.rules.is_empty());
+        restored.validate().unwrap();
+    }
+
+    #[test]
+    fn duplicate_or_invalid_persisted_rules_are_rejected() {
+        let mut config = document();
+        let rule = Rule::new(1, "Game", RuleTargetKind::ProcessName,
+            "game.exe", RuleAction::Block).unwrap();
+        config.rules = vec![rule.clone(), rule];
+        assert!(matches!(config.validate(), Err(StoreError::InvalidConfiguration)));
+        config.rules.clear();
+        config.rules.push(Rule {
+            id: 2, label: String::new(), target_kind: RuleTargetKind::ProcessName,
+            target: "game.exe".into(), action: RuleAction::Block, enabled: true,
+        });
+        assert!(matches!(config.validate(), Err(StoreError::InvalidConfiguration)));
     }
 
     #[test]
