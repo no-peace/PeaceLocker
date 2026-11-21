@@ -52,10 +52,10 @@ impl ExplorerTracker {
 }
 fn is_absolute_local_path(path: &str) -> bool {
     let bytes = path.as_bytes();
-    (bytes.len() >= 3 && bytes[1] == b':' && matches!(bytes[2], b'\\' | b'/')) || path.starts_with(r"\\\\")
+    (bytes.len() >= 3 && bytes[1] == b':' && matches!(bytes[2], b'\\' | b'/')) || path.starts_with(r"\\")
 }
 fn normalize_path(path: &str) -> String {
-    let value = path.replace('/', r"\\").to_ascii_lowercase();
+    let value = path.replace('/', "\\").to_ascii_lowercase();
     if value.len() == 3 && value.as_bytes()[1] == b':' && value.ends_with('\\') { value }
     else { value.trim_end_matches('\\').to_owned() }
 }
@@ -67,15 +67,15 @@ mod tests {
     }
     #[test] fn first_snapshot_is_baseline() {
         let mut t = ExplorerTracker::default();
-        assert!(t.update([obs(1, r"C:\\Data")]).is_empty());
+        assert!(t.update([obs(1, r"C:\Data")]).is_empty());
         assert_eq!(t.tracked_window_count(), 1);
     }
     #[test] fn folder_navigation_is_reported() {
         let mut t = ExplorerTracker::default();
         t.update([obs(1, r"C:\\Data")]);
-        let c = t.update([obs(1, r"C:\\Data\\Private")]);
+        let c = t.update([obs(1, r"C:\Data\Private")]);
         assert_eq!(c.len(), 1);
-        assert_eq!(c[0].previous_path.as_deref(), Some(r"c:\\data"));
+        assert_eq!(c[0].previous_path.as_deref(), Some(r"c:\data"));
     }
     #[test] fn reused_hwnd_with_new_process_identity_is_new_window() {
         let mut t = ExplorerTracker::default();

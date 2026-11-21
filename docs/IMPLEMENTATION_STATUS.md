@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 4 — Windows process monitoring connected to the desktop UI and core rule evaluation; Explorer/browser sources and runtime validation pending.**
+**Phase 4 — Windows process monitoring connected to the desktop UI; Explorer tracking/rule foundations added, Windows COM adapter and runtime validation pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -50,7 +50,7 @@ Implemented:
 - [x] Reviewed the legacy Explorer-folder observation behavior and identified its COM/UI-threading and title-fallback limitations before porting.
 
 Remaining:
-- [ ] Implement Explorer window/folder observation on a dedicated COM apartment thread, with all COM interfaces created and released on that thread.
+- [ ] Implement and integrate the Windows Explorer COM adapter on a dedicated STA thread; the platform-independent tracker and folder rule type are present, but no live Explorer locations are observed yet.
 - [ ] Match canonical filesystem paths only; treat title-derived folder names as ambiguous and never silently treat them as verified paths.
 - [ ] Add bounded polling, cancellation, explicit health/error reporting and deterministic shutdown for Explorer monitoring.
 - [ ] Classify per-process Win32 errors precisely.

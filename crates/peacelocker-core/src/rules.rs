@@ -146,7 +146,12 @@ fn normalize(kind: RuleTargetKind, value: &str) -> String {
     match kind {
         RuleTargetKind::ProcessName | RuleTargetKind::BrowserHost => value.to_ascii_lowercase(),
         RuleTargetKind::ExecutablePath | RuleTargetKind::FolderPath => {
-            value.replace('/', "\\").trim_end_matches('\\').to_ascii_lowercase()
+            let normalized = value.replace('/', "\\").to_ascii_lowercase();
+            if normalized.len() == 3 && normalized.as_bytes()[1] == b':' && normalized.ends_with('\\') {
+                normalized
+            } else {
+                normalized.trim_end_matches('\\').to_owned()
+            }
         }
     }
 }
@@ -177,11 +182,11 @@ mod tests {
 
     #[test]
     fn folder_paths_use_directory_boundaries() {
-        let r = rule(RuleTargetKind::FolderPath, r"C:\\Data\\Private");
+        let r = rule(RuleTargetKind::FolderPath, r"C:\Data\Private");
         assert!(r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"c:/data/private")));
-        assert!(r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Private\\Nested")));
-        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Private2")));
-        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Other")));
+        assert!(r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\Data\Private\Nested")));
+        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\Data\Private2")));
+        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\Data\Other")));
     }
 
     #[test]

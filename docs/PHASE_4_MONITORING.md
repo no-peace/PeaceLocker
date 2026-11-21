@@ -43,7 +43,8 @@ The Rust implementation must:
 
 ## Remaining Phase 4 work
 
-- Implement Explorer window/folder observation using the requirements above.
+- Platform-independent Explorer window identity and folder-change tracker added; folder rule matching uses directory boundaries.
+- Windows COM adapter and UI Start/Stop integration remain unimplemented.
 - Classify Win32 process-query errors precisely (access denied, process-exit races, other).
 - Add timeouts or cancellation strategy for slow/stuck OS queries.
 - Improve event history presentation and rule-management UI.

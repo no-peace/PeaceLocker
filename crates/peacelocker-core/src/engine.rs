@@ -218,6 +218,21 @@ mod tests {
         assert!(engine.evaluate_event(&process_event(MonitorEventKind::ProcessExited)).is_empty());
     }
     #[test]
+    fn explorer_folder_change_events_match_folder_rules() {
+        let mut engine = CoreEngine::new();
+        let folder_rule = Rule::new(8, "Private folder", RuleTargetKind::FolderPath,
+            r"C:\\Data\\Private", RuleAction::Notify).unwrap();
+        engine.execute(Command::AddRule(folder_rule)).unwrap();
+        let event = MonitorEvent { id: 45, occurred_at_unix_ms: 1_800_000_000_000,
+            source: MonitorSource::Explorer, kind: MonitorEventKind::ExplorerChanged,
+            correlation_id: Some(10),
+            target: ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Private\\Nested") };
+        let matches = engine.evaluate_event(&event);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].rule_id, 8);
+    }
+
+    #[test]
     fn monitor_unavailability_is_not_reported_as_healthy() {
         let mut engine = CoreEngine::new();
         engine.execute(Command::SetMonitorStatus { source: MonitorSource::Process,
