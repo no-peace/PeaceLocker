@@ -56,7 +56,7 @@ The following are not available as complete application workflows:
 - Migration preview, confirmation and complete migration orchestration.
 - Explorer folder enforcement.
 - Browser URL blocking/enforcement. The current observer only reports foreground hostnames.
-- Rule creation/editing UI and durable event history.
+- Persisting rule changes through the encrypted store and durable event history.
 - Process suspension, termination, filesystem access control or network filtering.
 - Automatic startup, tray integration, watchdog and Explorer context-menu integration from the legacy app.
 - TPM-backed key protection and TPM-wrapped legacy vault migration.
@@ -251,7 +251,7 @@ Important behavior:
 - Monitoring is manual and opt-in; it does not start automatically.
 - The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only. The browser observer reads a supported foreground browser address-bar value through UI Automation; it never writes to the browser UI.
 - Some processes may be inaccessible to query; the UI reports a count.
-- The current UI does not yet provide a rule editor, so the policy-match count will normally remain zero.
+- The Rule management section lets you add, edit, enable/disable and delete process-name, executable-path, folder-path and browser-host rules. Rules currently live only in memory and are lost when the app closes. The policy-match count reflects matching observations, but matches remain informational only.
 - **No process is suspended, killed, or blocked.**
 - On non-Windows systems the desktop shell may be buildable, but Windows process/Explorer monitoring controls and Windows DPAPI features are unavailable. Windows is the intended runtime platform.
 
