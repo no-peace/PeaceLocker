@@ -11,7 +11,7 @@ use std::{
 use peacelocker_monitor::{ExplorerObservation, ExplorerWindowIdentity};
 use thiserror::Error;
 use windows::{
-    core::{GUID, VARIANT},
+    core::{GUID, Interface, VARIANT},
     Win32::{
         System::Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL,
@@ -65,7 +65,7 @@ impl ExplorerMonitorService {
         let worker = thread::Builder::new()
             .name("peacelocker-explorer-sta".into())
             .spawn(move || {
-                if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_err() {
+                if unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok().is_err() {
                     let _ = message_tx.send(ExplorerMonitorMessage::Degraded("COM STA initialization failed".into()));
                     let _ = message_tx.send(ExplorerMonitorMessage::Stopped);
                     return;
