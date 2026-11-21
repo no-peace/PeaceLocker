@@ -39,7 +39,7 @@ impl eframe::App for PeaceLockerApp {
                 ui.heading("PeaceLocker");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(
-                        egui::RichText::new("RUST V2 · FOUNDATION")
+                        egui::RichText::new("RUST V2 · PHASE 2")
                             .small()
                             .color(egui::Color32::from_rgb(117, 190, 140)),
                     );
@@ -79,7 +79,7 @@ impl eframe::App for PeaceLockerApp {
                     ui,
                     "Protection",
                     "Not configured",
-                    "Authentication is not implemented yet",
+                    "PIN and encrypted storage primitives are not connected to this UI",
                 );
                 status_card(
                     ui,
@@ -91,8 +91,8 @@ impl eframe::App for PeaceLockerApp {
 
             ui.add_space(24.0);
             ui.group(|ui| {
-                ui.heading("Foundation status");
-                ui.label("This build is the Phase 0 application skeleton.");
+                ui.heading("Implementation status");
+                ui.label("Phase 2 security and storage foundations exist, but this desktop shell is not connected to them yet.");
                 ui.label(
                     "No monitoring, webcam capture, network reporting, or enforcement is active.",
                 );
