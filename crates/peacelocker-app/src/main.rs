@@ -105,7 +105,10 @@ impl PeaceLockerApp {
             },
         };
         match peacelocker_core::Rule::new(id, label, self.rule_kind, target, self.rule_action) {
-            Ok(rule) => {
+            Ok(mut rule) => {
+                if let Some(existing) = self.editing_rule_id.and_then(|id| self.core.snapshot().rules.into_iter().find(|item| item.id == id)) {
+                    rule.enabled = existing.enabled;
+                }
                 let command = if self.editing_rule_id.is_some() { peacelocker_core::Command::ReplaceRule(rule) } else { peacelocker_core::Command::AddRule(rule) };
                 match self.core.execute(command) {
                     Ok(_) => { self.rule_label.clear(); self.rule_target.clear(); self.editing_rule_id = None; self.rule_error = None; }
