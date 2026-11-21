@@ -32,7 +32,7 @@ The Rust workspace currently contains these implemented foundations:
 |---|---|
 | Desktop shell | Native egui/eframe application |
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
-| Rules | Validated process-name, executable-path and browser-host rule types; deterministic matching |
+| Rules | Validated process-name, executable-path, browser-host and folder-path rule types; deterministic matching |
 | Event handling | Typed monitor events and bounded event queue |
 | Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | PIN security | Argon2id verifier creation and verification with bounded parameters |
@@ -236,19 +236,21 @@ cargo test --workspace -- --nocapture
 2. The current egui window opens to the PeaceLocker overview.
 3. On Windows, locate the **Process monitoring** section.
 4. Select **Start process monitor** to begin read-only process metadata polling.
-5. Review the monitor status, inaccessible-process count, latest observed event and policy-match count.
-6. Select **Stop monitor** to stop polling.
+5. Review the process monitor status, inaccessible-process count, latest event and policy-match count.
+6. Select **Start Explorer monitor** to observe filesystem-backed Explorer windows.
+7. Review Explorer monitor health and the number of observed filesystem windows.
+8. Use the corresponding **Stop** control to stop either worker.
 
 The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles.
 
 Important behavior:
 
 - Monitoring is manual and opt-in; it does not start automatically.
-- The monitor uses query-only process handles and does not request administrator elevation.
+- The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only.
 - Some processes may be inaccessible to query; the UI reports a count.
 - The current UI does not yet provide a rule editor, so the policy-match count will normally remain zero.
 - **No process is suspended, killed, or blocked.**
-- On non-Windows systems the desktop shell may be buildable, but the Windows process-monitor controls and Windows DPAPI features are unavailable. Windows is the intended runtime platform.
+- On non-Windows systems the desktop shell may be buildable, but Windows process/Explorer monitoring controls and Windows DPAPI features are unavailable. Windows is the intended runtime platform.
 
 ## Workspace layout
 

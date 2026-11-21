@@ -49,7 +49,7 @@ The Rust implementation must (the current adapter follows these constraints):
 - Windows process handles are query-only.
 - No elevation is requested.
 - The app does not take enforcement action based on a matching rule.
-- Cancellation wakes the process polling worker between polls; a Win32 enumeration already in progress must return before the worker can join.
+- Cancellation wakes polling workers between polls. An in-progress Win32 or COM call must return before joined shutdown completes; the current implementation does not impose a hard timeout on a stuck OS/COM call.
 
 ## Remaining Phase 4 work
 
