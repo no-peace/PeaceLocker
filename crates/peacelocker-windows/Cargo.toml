@@ -14,6 +14,7 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dependencies]
+peacelocker-monitor = { path = "../peacelocker-monitor" }
 peacelocker-security = { path = "../peacelocker-security" }
 peacelocker-storage = { path = "../peacelocker-storage" }
 base64.workspace = true
