@@ -43,6 +43,7 @@ cargo run -p peacelocker-app
 - [Implementation roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
 - [Phase 1 security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
 - [Phase 2 storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
+- [Phase 3 core engine](docs/PHASE_3_CORE_ENGINE.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Important limitations
