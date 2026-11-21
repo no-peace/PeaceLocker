@@ -5,6 +5,9 @@
 
 use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus};
 
+mod process;
+pub use process::{ProcessChange, ProcessChangeKind, ProcessIdentity, ProcessSnapshot, ProcessTracker};
+
 /// Contract implemented by a monitor source. Implementations must report
 /// failures through status instead of silently claiming to be healthy.
 pub trait MonitorAdapter: Send {
