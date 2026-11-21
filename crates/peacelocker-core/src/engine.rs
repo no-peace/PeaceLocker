@@ -6,7 +6,8 @@ use thiserror::Error;
 
 use crate::{
     ProtectionStatus,
-    rules::{Rule, RuleValidationError},
+    events::MonitorSource,
+    rules::{ObservedTarget, Rule, RuleValidationError},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub enum MonitorHealth {
 pub struct MonitorStatus {
     pub health: MonitorHealth,
     pub last_success_unix_ms: Option<u64>,
+    /// Stable diagnostic identifier; never place secrets or raw paths here.
     pub detail_code: Option<&'static str>,
 }
 
@@ -40,7 +42,7 @@ pub struct CoreSnapshot {
     pub protection: ProtectionStatus,
     pub monitoring_enabled: bool,
     pub rules: Vec<Rule>,
-    pub monitors: BTreeMap<String, MonitorStatus>,
+    pub monitors: BTreeMap<MonitorSource, MonitorStatus>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,7 +54,7 @@ pub enum Command {
     AddRule(Rule),
     RemoveRule(u64),
     SetMonitorStatus {
-        source: String,
+        source: MonitorSource,
         status: MonitorStatus,
     },
 }
@@ -79,8 +81,6 @@ pub enum CommandError {
     DuplicateRule,
     #[error("rule ID was not found")]
     RuleNotFound,
-    #[error("monitor source identifier is invalid")]
-    InvalidMonitorSource,
     #[error("rule validation failed: {0}")]
     InvalidRule(#[from] RuleValidationError),
     #[error("state revision counter is exhausted")]
@@ -92,7 +92,7 @@ pub struct CoreEngine {
     protection: ProtectionStatus,
     monitoring_enabled: bool,
     rules: BTreeMap<u64, Rule>,
-    monitors: BTreeMap<String, MonitorStatus>,
+    monitors: BTreeMap<MonitorSource, MonitorStatus>,
     revision: u64,
 }
 
@@ -111,14 +111,22 @@ impl CoreEngine {
         }
     }
 
+    /// Return matching enabled rules in stable ID order. This is a decision
+    /// result only; callers must not treat it as an enforcement operation.
+    pub fn matching_rules(&self, observed: &ObservedTarget) -> Vec<&Rule> {
+        self.rules.values().filter(|rule| rule.matches(observed)).collect()
+    }
+
     pub fn execute(&mut self, command: Command) -> Result<CommandResult, CommandError> {
         match command {
             Command::CompleteSetup => {
                 if self.protection != ProtectionStatus::NotConfigured {
                     return Err(CommandError::AlreadyConfigured);
                 }
+                let revision = self.next_revision()?;
                 self.protection = ProtectionStatus::Unlocked;
-                self.changed()
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
             }
             Command::Unlock => {
                 if self.protection == ProtectionStatus::NotConfigured {
@@ -127,8 +135,10 @@ impl CoreEngine {
                 if self.protection != ProtectionStatus::Locked {
                     return Err(CommandError::NotLocked);
                 }
+                let revision = self.next_revision()?;
                 self.protection = ProtectionStatus::Unlocked;
-                self.changed()
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
             }
             Command::Lock => {
                 if self.protection != ProtectionStatus::Unlocked {
@@ -138,53 +148,53 @@ impl CoreEngine {
                         CommandError::NotUnlocked
                     });
                 }
+                let revision = self.next_revision()?;
                 self.protection = ProtectionStatus::Locked;
-                self.changed()
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
             }
             Command::SetMonitoringEnabled(enabled) => {
                 if self.monitoring_enabled == enabled {
                     return Ok(CommandResult::NoChange { revision: self.revision });
                 }
+                let revision = self.next_revision()?;
                 self.monitoring_enabled = enabled;
-                self.changed()
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
             }
             Command::AddRule(rule) => {
                 rule.validate()?;
                 if self.rules.contains_key(&rule.id) {
                     return Err(CommandError::DuplicateRule);
                 }
+                let revision = self.next_revision()?;
                 self.rules.insert(rule.id, rule);
-                let revision = self.bump_revision()?;
+                self.revision = revision;
                 Ok(CommandResult::RuleAdded { revision })
             }
             Command::RemoveRule(id) => {
-                if self.rules.remove(&id).is_none() {
+                if !self.rules.contains_key(&id) {
                     return Err(CommandError::RuleNotFound);
                 }
-                let revision = self.bump_revision()?;
+                let revision = self.next_revision()?;
+                self.rules.remove(&id);
+                self.revision = revision;
                 Ok(CommandResult::RuleRemoved { revision })
             }
             Command::SetMonitorStatus { source, status } => {
-                if source.trim().is_empty() || source.len() > 64 {
-                    return Err(CommandError::InvalidMonitorSource);
-                }
                 if self.monitors.get(&source) == Some(&status) {
                     return Ok(CommandResult::NoChange { revision: self.revision });
                 }
+                let revision = self.next_revision()?;
                 self.monitors.insert(source, status);
-                self.changed()
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
             }
         }
     }
 
-    fn changed(&mut self) -> Result<CommandResult, CommandError> {
-        let revision = self.bump_revision()?;
-        Ok(CommandResult::StateChanged { revision })
-    }
-
-    fn bump_revision(&mut self) -> Result<u64, CommandError> {
-        self.revision = self.revision.checked_add(1).ok_or(CommandError::RevisionExhausted)?;
-        Ok(self.revision)
+    fn next_revision(&self) -> Result<u64, CommandError> {
+        self.revision.checked_add(1).ok_or(CommandError::RevisionExhausted)
     }
 }
 
@@ -237,17 +247,27 @@ mod tests {
     }
 
     #[test]
+    fn matching_rules_are_returned_in_id_order() {
+        let mut engine = CoreEngine::new();
+        engine.execute(Command::AddRule(rule(9))).unwrap();
+        engine.execute(Command::AddRule(rule(2))).unwrap();
+        let observed = ObservedTarget::new(RuleTargetKind::ProcessName, "GAME.EXE");
+        let matches = engine.matching_rules(&observed);
+        assert_eq!(matches.iter().map(|rule| rule.id).collect::<Vec<_>>(), vec![2, 9]);
+    }
+
+    #[test]
     fn monitor_unavailability_is_not_reported_as_healthy() {
         let mut engine = CoreEngine::new();
         engine.execute(Command::SetMonitorStatus {
-            source: "process".into(),
+            source: MonitorSource::Process,
             status: MonitorStatus {
                 health: MonitorHealth::Unavailable,
                 last_success_unix_ms: None,
                 detail_code: Some("permission_denied"),
             },
         }).unwrap();
-        assert_eq!(engine.snapshot().monitors["process"].health, MonitorHealth::Unavailable);
+        assert_eq!(engine.snapshot().monitors[&MonitorSource::Process].health, MonitorHealth::Unavailable);
     }
 
     #[test]
