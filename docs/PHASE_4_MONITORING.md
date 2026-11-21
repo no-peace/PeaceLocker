@@ -51,7 +51,7 @@ The Rust implementation must (the current adapter follows these constraints):
 - The app does not take enforcement action based on a matching rule.
 - Cancellation wakes polling workers between polls. An in-progress Win32 or COM call must return before joined shutdown completes; the current implementation does not impose a hard timeout on a stuck OS/COM call.
 
-## Remaining Phase 4 work
+## Browser URL monitoring implementation\n\n- The browser observer runs on a dedicated COM STA worker and inspects only the foreground window.\n- It first verifies the foreground process image against a fixed browser allowlist: Chrome, Edge, Firefox, Brave, Vivaldi and Opera.\n- It reads only known browser address-bar AutomationIds via UI Automation ValuePattern. It does not scan arbitrary edit controls or page content. Password-marked controls are rejected.\n- Only committed HTTP(S) URLs are accepted. The URL is reduced immediately to a normalized hostname; credentials, path, query and fragment are not retained or sent to the event pipeline.\n- The first observation is a baseline; subsequent active-window or hostname changes become BrowserNavigated events and are evaluated against BrowserHost rules.\n- Monitoring is opt-in and has explicit Start/Stop controls. Unsupported foreground apps produce a waiting status.\n- Address-bar AutomationIds vary by browser version and may change; runtime validation is required. The observer sees only the foreground browser window, not background tabs.\n\n## Remaining Phase 4 work
 
 - Platform-independent Explorer window identity and folder-change tracker added; folder rule matching uses directory boundaries.
 - Windows COM adapter and UI Start/Stop integration implemented; Windows runtime validation remains outstanding.
@@ -59,7 +59,7 @@ The Rust implementation must (the current adapter follows these constraints):
 - Add timeouts or cancellation strategy for slow/stuck OS queries.
 - Improve event history presentation and rule-management UI.
 - Persist rule configuration.
-- Implement supported-browser URL detection and UI Automation adapters.
+- Validate supported-browser address-bar identifiers, UI Automation permissions, URL normalization and STA shutdown across Windows/browser versions.
 - Add live Windows integration tests.
 
 ## Validation

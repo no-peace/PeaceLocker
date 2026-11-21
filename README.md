@@ -6,7 +6,7 @@ PeaceLocker is a Windows-focused desktop application project for configurable pr
 - **PeaceLocker 2.0 (Rust):** the active rewrite, developed on `rewrite/rust-v2`.
 
 > [!WARNING]
-> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI currently provides an application shell, an opt-in read-only Windows process monitor, and an opt-in Explorer folder observer. PIN authentication, encrypted configuration, recovery, folder blocking, browser blocking, and enforcement are not connected to the GUI. Do not rely on this branch to protect files, accounts, or devices.
+> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI currently provides an application shell, an opt-in read-only Windows process monitor, an opt-in Explorer folder observer, and an opt-in active-browser hostname observer. PIN authentication, encrypted configuration, recovery, folder blocking, browser blocking, and enforcement are not connected to the GUI. Do not rely on this branch to protect files, accounts, or devices.
 
 ## Table of contents
 
@@ -34,7 +34,7 @@ The Rust workspace currently contains these implemented foundations:
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
 | Rules | Validated process-name, executable-path, browser-host and folder-path rule types; deterministic matching |
 | Event handling | Typed monitor events and bounded event queue |
-| Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
+| Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |\n| Browser observation | STA UI Automation worker; foreground supported-browser address-bar only; hostname-only events |
 | PIN security | Argon2id verifier creation and verification with bounded parameters |
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |
@@ -241,7 +241,7 @@ cargo test --workspace -- --nocapture
 7. Review Explorer monitor health and the number of observed filesystem windows.
 8. Use the corresponding **Stop** control to stop either worker.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads only known address-bar controls in the foreground window and stores hostnames only; it does not inspect page content or background tabs.
 
 Important behavior:
 
