@@ -90,10 +90,7 @@ impl Rule {
                 }
             }
             RuleTargetKind::BrowserHost => {
-                if self.target.chars().any(|ch| matches!(ch, '/' | '\\' | ':' | '@' | ' '))
-                    || self.target.starts_with('.')
-                    || self.target.ends_with('.')
-                {
+                if !is_valid_hostname(&self.target) {
                     return Err(RuleValidationError::InvalidTarget);
                 }
             }
@@ -119,6 +116,20 @@ impl ObservedTarget {
     pub fn new(kind: RuleTargetKind, value: impl Into<String>) -> Self {
         Self { kind, value: value.into() }
     }
+}
+
+fn is_valid_hostname(host: &str) -> bool {
+    if host.is_empty() || host.len() > 253 || !host.is_ascii() {
+        return false;
+    }
+
+    host.split('.').all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && label.as_bytes().first().is_some_and(u8::is_ascii_alphanumeric)
+            && label.as_bytes().last().is_some_and(u8::is_ascii_alphanumeric)
+            && label.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    })
 }
 
 fn normalize(kind: RuleTargetKind, value: &str) -> String {
@@ -172,6 +183,13 @@ mod tests {
             RuleValidationError::InvalidId,
         );
         assert!(Rule::new(1, "x", RuleTargetKind::BrowserHost, "https://example.com", RuleAction::Block).is_err());
+    }
+
+    #[test]
+    fn malformed_hostnames_are_rejected() {
+        for host in ["https://example.com", ".example.com", "example..com", "-bad.example", "bad-.example", "bad host"] {
+            assert!(Rule::new(1, "host", RuleTargetKind::BrowserHost, host, RuleAction::Block).is_err(), "{host}");
+        }
     }
 
     #[test]
