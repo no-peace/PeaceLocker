@@ -12,7 +12,7 @@ The original application is implemented in C++ and uses Win32 APIs. Its source r
 
 The Rust implementation is being developed on the `rewrite/rust-v2` branch.
 
-**Current status: Phase 1 — security foundation implemented; validation pending.**
+**Current status: Phase 2 — encrypted storage and legacy text-import implementation committed; validation pending.**
 
 The Rust track currently includes:
 - A Cargo workspace split into application, core, security, monitoring, storage, notifications, and Windows platform crates.
@@ -45,6 +45,7 @@ cargo run -p peacelocker-app
 - [Security and privacy specification](docs/PEACELOCKER_V2_SECURITY.md)
 - [Implementation roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
 - [Phase 1 security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
+- [Phase 2 storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Development policy
