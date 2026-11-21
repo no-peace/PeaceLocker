@@ -24,6 +24,7 @@ const MAX_CONFIG_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ENVELOPE_BYTES: u64 = 20 * 1024 * 1024;
 const MAX_PROTECTED_KEY_BYTES: usize = 64 * 1024;
 const MAX_RECOVERY_VERIFIERS: usize = 16;
+const MAX_BLOCKED_ITEMS: usize = 2_048;
 const CONFIG_AAD: &[u8] = b"PeaceLocker/configuration-store/v1";
 
 #[derive(Debug, Error)]
@@ -38,6 +39,14 @@ pub trait KeyProtector {
     fn unprotect_key(&self, protected: &[u8]) -> Result<DataKey, KeyProtectionError>;
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BlockedItem {
+    pub target_type: String,
+    pub value: String,
+    pub label: String,
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigDocument {
@@ -48,6 +57,11 @@ pub struct ConfigDocument {
     pub pin_verifier: String,
     pub recovery_verifiers: Vec<String>,
     pub lockout: LockoutState,
+    pub auto_start: bool,
+    pub shell_integration: bool,
+    pub activity_logging_enabled: bool,
+    pub webhook_url: Option<String>,
+    pub blocked_items: Vec<BlockedItem>,
 }
 
 impl ConfigDocument {
@@ -60,6 +74,11 @@ impl ConfigDocument {
             pin_verifier,
             recovery_verifiers,
             lockout: LockoutState::default(),
+            auto_start: true,
+            shell_integration: true,
+            activity_logging_enabled: false,
+            webhook_url: None,
+            blocked_items: Vec::new(),
         }
     }
 
@@ -75,6 +94,17 @@ impl ConfigDocument {
                 value.len() > 512 || !value.starts_with("$argon2id$")
             })
             || !self.lockout.validate()
+            || self.webhook_url.as_ref().is_some_and(|url| {
+                url.len() > 2_048 || !url.starts_with("https://")
+            })
+            || self.blocked_items.len() > MAX_BLOCKED_ITEMS
+            || self.blocked_items.iter().any(|item| {
+                item.target_type.is_empty()
+                    || item.target_type.len() > 32
+                    || item.value.is_empty()
+                    || item.value.len() > 4_096
+                    || item.label.len() > 256
+            })
         {
             return Err(StoreError::InvalidConfiguration);
         }
