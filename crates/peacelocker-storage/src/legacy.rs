@@ -103,6 +103,12 @@ pub fn parse_legacy_text(input: &str) -> Result<LegacyImportReport, LegacyImport
             "pin" | "pinsalt" | "piniter" | "pinv" | "pepper" | "pinfail"
             | "pinlock" | "recsalt" | "rechash" | "hmac" => {
                 report.credential_reset_required = true;
+                if key == "hmac" {
+                    report.warnings.push(
+                        "Legacy HMAC was not trusted because the old format used a hardcoded key."
+                            .to_owned(),
+                    );
+                }
                 if !report.ignored_sensitive_fields.iter().any(|field| field == key) {
                     report.ignored_sensitive_fields.push(key.to_owned());
                 }
