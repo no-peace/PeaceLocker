@@ -80,17 +80,17 @@ impl Rule {
 
         match self.target_kind {
             RuleTargetKind::ProcessName => {
-                if self.target.contains(['/', '\\\\']) {
+                if self.target.chars().any(|ch| matches!(ch, '/' | '\\')) {
                     return Err(RuleValidationError::InvalidTarget);
                 }
             }
             RuleTargetKind::ExecutablePath => {
-                if !self.target.contains(['/', '\\\\']) {
+                if !self.target.chars().any(|ch| matches!(ch, '/' | '\\')) {
                     return Err(RuleValidationError::InvalidTarget);
                 }
             }
             RuleTargetKind::BrowserHost => {
-                if self.target.contains(['/', '\\\\', ':', '@', ' '])
+                if self.target.chars().any(|ch| matches!(ch, '/' | '\\' | ':' | '@' | ' '))
                     || self.target.starts_with('.')
                     || self.target.ends_with('.')
                 {
@@ -126,7 +126,7 @@ fn normalize(kind: RuleTargetKind, value: &str) -> String {
     match kind {
         RuleTargetKind::ProcessName | RuleTargetKind::BrowserHost => value.to_ascii_lowercase(),
         RuleTargetKind::ExecutablePath => {
-            value.replace('/', "\\\\").trim_end_matches('\\\\').to_ascii_lowercase()
+            value.replace('/', "\\").trim_end_matches('\\').to_ascii_lowercase()
         }
     }
 }
@@ -151,7 +151,7 @@ mod tests {
         let rule = rule(RuleTargetKind::ExecutablePath, "C:/Games/Example/game.exe");
         assert!(rule.matches(&ObservedTarget::new(
             RuleTargetKind::ExecutablePath,
-            "c:\\\\games\\\\example\\\\game.exe",
+            "c:\\games\\example\\game.exe",
         )));
     }
 
