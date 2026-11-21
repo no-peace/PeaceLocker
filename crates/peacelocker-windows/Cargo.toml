@@ -11,7 +11,14 @@ windows-sys = { version = "0.59", features = [
     "Win32_Security_Cryptography",
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
 ] }
+windows = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+] }
+url.workspace = true
 
 [dependencies]
 peacelocker-monitor = { path = "../peacelocker-monitor" }
