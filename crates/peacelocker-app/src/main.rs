@@ -220,6 +220,7 @@ impl eframe::App for PeaceLockerApp {
     fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(windows)]
         self.drain_process_messages();
+        #[cfg(windows)]
         self.drain_explorer_messages();
 
         egui::TopBottomPanel::top("top_bar").show(context, |ui| {
@@ -267,12 +268,12 @@ impl eframe::App for PeaceLockerApp {
                 ui.label(format!("Last event: {}", self.last_event));
                 ui.label(format!("Policy matches: {}", self.matched_rule_count));
                 if let Some(error) = &self.monitor_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
-                ui.label("Monitoring only observes process metadata. Policy matches are reported as decisions; no process is suspended, terminated, or blocked.");
+                ui.label("Monitoring observes process metadata and Explorer folder locations. Policy matches are decisions only; nothing is suspended, terminated, or blocked.");
             });
             ui.add_space(16.0);
             ui.group(|ui| {
                 ui.heading("Implementation status");
-                ui.label("The Windows process enumerator now feeds the supervised worker. Process lifecycle changes are normalized and evaluated against core rules.");
+                ui.label("Windows process and Explorer observations feed supervised workers. Lifecycle and folder changes are normalized and evaluated against core rules.");
                 ui.label("Browser URL monitoring, rule-management UI, and encrypted-store integration remain incomplete.");
                 ui.label(format!("Runtime state: {}", self.snapshot.status_label()));
             });

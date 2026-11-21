@@ -23,7 +23,7 @@ use windows::{
 use windows_sys::Win32::{
     Foundation::{CloseHandle, FILETIME, HANDLE},
     System::Threading::{GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
-    UI::WindowsAndMessaging::{GetClassNameW, GetWindowThreadProcessId},
+    UI::WindowsAndMessaging::{GetClassNameW, GetWindowThreadProcessId, IsWindowVisible},
 };
 
 const CLSID_SHELL_WINDOWS: GUID = GUID::from_u128(0x9BA05972F6A811CFA44200A0C90A8F39);
@@ -147,6 +147,7 @@ pub fn enumerate_explorer_windows() -> Result<Vec<ExplorerObservation>, Explorer
 }
 
 fn is_file_explorer_window(hwnd: isize) -> bool {
+    if unsafe { IsWindowVisible(hwnd as *mut c_void) } == 0 { return false; }
     let mut class_name = [0u16; 128];
     let len = unsafe { GetClassNameW(hwnd as *mut c_void, class_name.as_mut_ptr(), class_name.len() as i32) };
     if len <= 0 { return false; }

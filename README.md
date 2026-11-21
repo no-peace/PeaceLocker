@@ -52,7 +52,7 @@ The following are not available as complete application workflows:
 - First-run PIN setup, unlock, PIN change and recovery UI.
 - Connecting the GUI to the encrypted configuration store and persisted lockout service.
 - Migration preview, confirmation and complete migration orchestration.
-- Explorer folder observation and enforcement.
+- Explorer folder enforcement.
 - Browser URL observation and enforcement.
 - Rule creation/editing UI and durable event history.
 - Process suspension, termination, filesystem access control or network filtering.
@@ -238,7 +238,7 @@ cargo test --workspace -- --nocapture
 5. Review the monitor status, inaccessible-process count, latest observed event and policy-match count.
 6. Select **Stop monitor** to stop polling.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation/new filesystem windows. Virtual shell locations (for example, This PC) are ignored rather than guessed from window titles.
 
 Important behavior:
 
