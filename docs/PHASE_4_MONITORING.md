@@ -32,7 +32,7 @@ The legacy rule test first uses a path-prefix comparison and then falls back to 
 
 ## Explorer implementation requirements
 
-The Rust implementation must:
+The Rust implementation must (the current adapter follows these constraints):
 
 1. Run all COM initialization, interface creation, calls, and interface release on one dedicated STA worker thread. Do not pass COM interface pointers to the egui/UI thread or another worker.
 2. Pair successful COM initialization with `CoUninitialize` on the same thread, including error and shutdown paths.

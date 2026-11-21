@@ -6,7 +6,7 @@ PeaceLocker is a Windows-focused desktop application project for configurable pr
 - **PeaceLocker 2.0 (Rust):** the active rewrite, developed on `rewrite/rust-v2`.
 
 > [!WARNING]
-> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI currently provides an application shell and an opt-in, read-only Windows process monitor. PIN authentication, encrypted configuration, recovery, folder blocking, browser blocking, and enforcement are not connected to the GUI. Do not rely on this branch to protect files, accounts, or devices.
+> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI currently provides an application shell, an opt-in read-only Windows process monitor, and an opt-in Explorer folder observer. PIN authentication, encrypted configuration, recovery, folder blocking, browser blocking, and enforcement are not connected to the GUI. Do not rely on this branch to protect files, accounts, or devices.
 
 ## Table of contents
 
@@ -33,7 +33,8 @@ The Rust workspace currently contains these implemented foundations:
 | Desktop shell | Native egui/eframe application |
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
 | Rules | Validated process-name, executable-path and browser-host rule types; deterministic matching |
-| Event handling | Typed monitor events and bounded event queue |\n| Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
+| Event handling | Typed monitor events and bounded event queue |
+| Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | PIN security | Argon2id verifier creation and verification with bounded parameters |
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |
@@ -238,7 +239,7 @@ cargo test --workspace -- --nocapture
 5. Review the monitor status, inaccessible-process count, latest observed event and policy-match count.
 6. Select **Stop monitor** to stop polling.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation/new filesystem windows. Virtual shell locations (for example, This PC) are ignored rather than guessed from window titles.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports later folder navigation and new filesystem-backed Explorer windows. Virtual shell locations are ignored rather than inferred from window titles. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation/new filesystem windows. Virtual shell locations (for example, This PC) are ignored rather than guessed from window titles.
 
 Important behavior:
 

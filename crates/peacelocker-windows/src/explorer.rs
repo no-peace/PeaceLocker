@@ -14,7 +14,7 @@ use windows::{
     core::{GUID, VARIANT},
     Win32::{
         System::Com::{
-            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_LOCAL_SERVER,
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL,
             COINIT_APARTMENTTHREADED,
         },
         UI::Shell::{IShellWindows, IWebBrowser2},
@@ -118,9 +118,9 @@ impl Drop for ComApartment {
 /// Enumerates real Explorer windows and accepts filesystem-backed file URLs
 /// only. Virtual shell locations and window-title guesses are deliberately
 /// excluded.
-pub fn enumerate_explorer_windows() -> Result<Vec<ExplorerObservation>, ExplorerEnumerationError> {
+fn enumerate_explorer_windows() -> Result<Vec<ExplorerObservation>, ExplorerEnumerationError> {
     let shell: IShellWindows = unsafe {
-        CoCreateInstance(&CLSID_SHELL_WINDOWS, None, CLSCTX_LOCAL_SERVER)
+        CoCreateInstance(&CLSID_SHELL_WINDOWS, None, CLSCTX_ALL)
     }.map_err(|_| ExplorerEnumerationError::ShellEnumeration)?;
     let count = unsafe { shell.Count() }.map_err(|_| ExplorerEnumerationError::ShellEnumeration)?;
     let mut observations = Vec::new();

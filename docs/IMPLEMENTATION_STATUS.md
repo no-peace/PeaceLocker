@@ -50,9 +50,10 @@ Implemented:
 - [x] Reviewed the legacy Explorer-folder observation behavior and identified its COM/UI-threading and title-fallback limitations before porting.
 
 Remaining:
-- [x] Implement Explorer COM STA polling adapter and UI Start/Stop integration.\n- [ ] Validate COM enumeration, path conversion, and shutdown on supported Windows versions.
-- [ ] Match canonical filesystem paths only; treat title-derived folder names as ambiguous and never silently treat them as verified paths.
-- [ ] Add bounded polling, cancellation, explicit health/error reporting and deterministic shutdown for Explorer monitoring.
+- [x] Implement Explorer COM STA polling adapter and UI Start/Stop integration.
+- [ ] Validate COM enumeration, path conversion, and shutdown on supported Windows versions.
+- [x] Match canonical filesystem paths only; ignore title-derived folder names.
+- [x] Add bounded polling, cancellation, explicit health/error reporting and deterministic shutdown for Explorer monitoring.
 - [ ] Classify per-process Win32 errors precisely.
 - [ ] Add cancellation/timeouts for slow or stuck Windows queries.
 - [ ] Add live Windows integration tests.

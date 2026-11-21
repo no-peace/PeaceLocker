@@ -79,7 +79,7 @@ mod tests {
     }
     #[test] fn reused_hwnd_with_new_process_identity_is_new_window() {
         let mut t = ExplorerTracker::default();
-        t.update([obs(1, r"C:\Data)]);
+        t.update([obs(1, r"C:\Data")]);
         let mut replacement = obs(1, r"C:\Data");
         replacement.identity.process_creation_time_100ns += 1;
         assert_eq!(t.update([replacement]).len(), 1);

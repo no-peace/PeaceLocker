@@ -10,7 +10,7 @@ mod dpapi;
 mod legacy_import;
 
 #[cfg(windows)]
-pub use explorer::{ExplorerEnumerationError, ExplorerMonitorMessage, ExplorerMonitorService, ExplorerMonitorStartError, enumerate_explorer_windows};
+pub use explorer::{ExplorerEnumerationError, ExplorerMonitorMessage, ExplorerMonitorService, ExplorerMonitorStartError};
 
 #[cfg(windows)]
 pub use process::{ProcessEnumeration, ProcessEnumerationError, enumerate_processes};
