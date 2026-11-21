@@ -4,7 +4,7 @@ This is the new Rust implementation of PeaceLocker. It is being developed separa
 
 ## Current status
 
-**Phase 2 — encrypted storage and legacy text-import implementation committed; validation pending.**
+**Phase 2 — encrypted storage and legacy DPAPI/text import implementation committed; validation pending.**
 
 The workspace currently contains:
 - A Cargo workspace with application, core, security, monitoring, storage, notifications, and Windows platform crates.
