@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 3 — core state, command engine, rules, and bounded event queue committed; validation pending.**
+**Phase 4 — initial process enumeration and PID-lifetime tracking committed; Explorer/browser monitoring and runtime validation pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -103,6 +103,32 @@ Validation pending:
 - [ ] Cargo dependency resolution and compilation.
 - [ ] Rustfmt and Clippy.
 - [ ] Core unit tests executed.
+
+## Phase 4 — monitoring sources (partial)
+
+### Process source foundation
+
+Implemented:
+- [x] Platform-independent process snapshot and process-lifetime identity types.
+- [x] Deterministic snapshot tracker that detects process starts and exits.
+- [x] PID reuse detection using the process creation FILETIME, treating a changed creation time as an exit plus a new start.
+- [x] Duplicate PID handling within a snapshot is deterministic.
+- [x] Windows process enumeration through documented Tool Help APIs.
+- [x] Query-only process handles using `PROCESS_QUERY_LIMITED_INFORMATION`; no elevation attempt.
+- [x] Process creation-time query via `GetProcessTimes`.
+- [x] Executable path query via `QueryFullProcessImageNameW`.
+- [x] RAII handle cleanup for snapshot and process handles.
+- [x] Inaccessible or unidentifiable processes are counted and skipped rather than assigned an unsafe PID-only identity.
+- [x] Unit tests added for starts, exits, unchanged snapshots, duplicate PIDs, and PID reuse.
+
+Remaining:
+- [ ] Distinguish access-denied, process-exited-during-query, and other per-process errors using explicit Win32 error codes.
+- [ ] Add a supervised polling loop, configurable interval, and backoff.
+- [ ] Bridge process changes into normalized core events and rule evaluation.
+- [ ] Add Windows integration tests against live processes.
+- [ ] Implement Explorer location monitoring with correct COM apartment ownership.
+- [ ] Implement browser URL detection and supported-browser UI Automation adapters.
+- [ ] Surface source health and diagnostics to the application.
 
 ## Validation environment
 
