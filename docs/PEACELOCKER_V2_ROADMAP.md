@@ -109,18 +109,18 @@ A security crate that can be tested independently from the GUI and monitor engin
 
 ### Tasks
 
-- [ ] Define the first versioned configuration schema.
-- [ ] Define strict size and field validation limits.
-- [ ] Implement encrypted configuration serialization.
-- [ ] Implement atomic file replacement.
-- [ ] Implement bounded backup retention.
-- [ ] Implement backup validation before restore.
+- [x] Define the first versioned configuration schema.
+- [x] Define strict size and field validation limits.
+- [x] Implement encrypted configuration serialization.
+- [x] Implement atomic file replacement.
+- [x] Implement one-generation bounded backup retention.
+- [x] Implement backup validation before restore.
 - [ ] Handle disk-full, permission, interrupted-write, and corrupted-file cases.
-- [ ] Identify the exact legacy configuration formats from the C++ implementation.
-- [ ] Document which legacy settings are safe to import.
-- [ ] Implement a read-only legacy parser first.
+- [x] Identify the legacy PVBIN01 binary container and key=value text formats.
+- [x] Document which legacy settings are safe to import.
+- [x] Implement read-only text parsing and DPAPI-wrapped binary import; TPM wrapper remains unsupported.
 - [ ] Implement migration into a newly generated DEK/encrypted store.
-- [ ] Require credential reset when legacy verifier compatibility is uncertain.
+- [x] Require a new Rust PIN; legacy PIN and recovery verifiers are not imported.
 - [ ] Add migration preview/reporting.
 - [ ] Test interrupted migration and rollback.
 
