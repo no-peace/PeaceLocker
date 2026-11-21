@@ -142,7 +142,11 @@ fn unprotect_legacy_dpapi(protected: &[u8]) -> Result<Vec<u8>, LegacyVaultError>
         || output.cbData as usize > MAX_LEGACY_BLOB_BYTES as usize
     {
         if !output.pbData.is_null() {
-            let remaining = unsafe { LocalFree(output.pbData.cast::<c_void>()) };
+            // SAFETY: DPAPI allocated cbData writable bytes on success.
+            let remaining = unsafe {
+                output.pbData.write_bytes(0, output.cbData as usize);
+                LocalFree(output.pbData.cast::<c_void>())
+            };
             if !remaining.is_null() {
                 return Err(LegacyVaultError::DpapiReleaseFailed);
             }
