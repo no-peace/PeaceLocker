@@ -358,7 +358,7 @@ impl eframe::App for PeaceLockerApp {
             ui.horizontal(|ui| {
                 ui.heading("PeaceLocker");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new("RUST V2 · PHASE 4").small().color(egui::Color32::from_rgb(117, 190, 140)));
+                    ui.label(egui::RichText::new("RUST V2 · PHASE 5").small().color(egui::Color32::from_rgb(117, 190, 140)));
                 });
             });
         });
@@ -410,7 +410,6 @@ impl eframe::App for PeaceLockerApp {
                 if let Some(error) = &self.monitor_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
                 ui.label("Monitoring observes process metadata and Explorer folder locations. Policy matches are decisions only; nothing is suspended, terminated, or blocked.");
             });
-            ui.add_space(16.0);
             ui.add_space(16.0);
             ui.group(|ui| {
                 ui.heading("Rule management");
@@ -470,7 +469,7 @@ impl eframe::App for PeaceLockerApp {
             ui.group(|ui| {
                 ui.heading("Implementation status");
                 ui.label("Windows process, Explorer and active-browser observations feed supervised workers. Lifecycle, folder and hostname changes are normalized and evaluated against core rules.");
-                ui.label("Rule-management UI and encrypted-store integration remain incomplete.");
+                ui.label("Rules can be managed in memory. Encrypted-store integration and durable event history remain incomplete.");
                 ui.label(format!("Runtime state: {}", self.snapshot.status_label()));
             });
         });
