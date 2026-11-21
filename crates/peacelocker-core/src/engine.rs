@@ -94,9 +94,10 @@ impl CoreEngine {
     /// events are actionable; exit events are retained for audit/telemetry.
     /// The result describes policy matches and never enforces them.
     pub fn evaluate_event(&self, event: &MonitorEvent) -> Vec<RuleMatch> {
-        if event.source != MonitorSource::Process || event.kind != MonitorEventKind::ProcessStarted {
-            return Vec::new();
-        }
+        let actionable = matches!((event.source, event.kind),
+            (MonitorSource::Process, MonitorEventKind::ProcessStarted)
+            | (MonitorSource::Explorer, MonitorEventKind::ExplorerChanged));
+        if !actionable { return Vec::new(); }
         self.matching_rules(&event.target).into_iter().map(|rule| RuleMatch {
             event_id: event.id, rule_id: rule.id, label: rule.label.clone(), action: rule.action,
         }).collect()

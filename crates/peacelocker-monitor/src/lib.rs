@@ -2,7 +2,9 @@
 
 use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus};
 mod process;
+mod explorer;
 mod service;
+pub use explorer::{ExplorerChange, ExplorerObservation, ExplorerTracker, ExplorerWindowIdentity};
 pub use process::{ProcessChange, ProcessChangeKind, ProcessIdentity, ProcessSnapshot, ProcessTracker};
 pub use service::{PollingConfig, PollingConfigError, PollingStartError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult};
 

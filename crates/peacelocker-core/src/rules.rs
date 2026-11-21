@@ -14,6 +14,7 @@ pub enum RuleTargetKind {
     ProcessName,
     ExecutablePath,
     BrowserHost,
+    FolderPath,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,7 +85,7 @@ impl Rule {
                     return Err(RuleValidationError::InvalidTarget);
                 }
             }
-            RuleTargetKind::ExecutablePath => {
+            RuleTargetKind::ExecutablePath | RuleTargetKind::FolderPath => {
                 if !self.target.chars().any(|ch| matches!(ch, '/' | '\\')) {
                     return Err(RuleValidationError::InvalidTarget);
                 }
@@ -99,10 +100,12 @@ impl Rule {
     }
 
     pub fn matches(&self, observed: &ObservedTarget) -> bool {
-        self.enabled
-            && self.target_kind == observed.kind
-            && normalize(self.target_kind, &self.target)
-                == normalize(observed.kind, &observed.value)
+        if !self.enabled || self.target_kind != observed.kind { return false; }
+        let expected = normalize(self.target_kind, &self.target);
+        let actual = normalize(observed.kind, &observed.value);
+        if self.target_kind == RuleTargetKind::FolderPath {
+            path_is_same_or_child(&expected, &actual)
+        } else { expected == actual }
     }
 }
 
@@ -116,6 +119,12 @@ impl ObservedTarget {
     pub fn new(kind: RuleTargetKind, value: impl Into<String>) -> Self {
         Self { kind, value: value.into() }
     }
+}
+
+fn path_is_same_or_child(rule: &str, observed: &str) -> bool {
+    if rule == observed { return true; }
+    if rule.ends_with('\\') { return observed.starts_with(rule); }
+    observed.strip_prefix(rule).is_some_and(|suffix| suffix.starts_with('\\'))
 }
 
 fn is_valid_hostname(host: &str) -> bool {
@@ -136,7 +145,7 @@ fn normalize(kind: RuleTargetKind, value: &str) -> String {
     let value = value.trim();
     match kind {
         RuleTargetKind::ProcessName | RuleTargetKind::BrowserHost => value.to_ascii_lowercase(),
-        RuleTargetKind::ExecutablePath => {
+        RuleTargetKind::ExecutablePath | RuleTargetKind::FolderPath => {
             value.replace('/', "\\").trim_end_matches('\\').to_ascii_lowercase()
         }
     }
@@ -164,6 +173,15 @@ mod tests {
             RuleTargetKind::ExecutablePath,
             "c:\\games\\example\\game.exe",
         )));
+    }
+
+    #[test]
+    fn folder_paths_use_directory_boundaries() {
+        let r = rule(RuleTargetKind::FolderPath, r"C:\\Data\\Private");
+        assert!(r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"c:/data/private")));
+        assert!(r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Private\\Nested")));
+        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Private2")));
+        assert!(!r.matches(&ObservedTarget::new(RuleTargetKind::FolderPath, r"C:\\Data\\Other")));
     }
 
     #[test]
