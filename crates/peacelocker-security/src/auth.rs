@@ -62,19 +62,20 @@ pub fn authenticate_pin(
         return Err(AuthError::InvalidVerifier);
     }
 
-    if let Some(last_seen) = state.last_observed_unix {
-        if now_unix < last_seen {
-            let deadline = state
-                .lockout_until_unix
-                .unwrap_or(0)
-                .max(last_seen.saturating_add(LOCKOUT_SECONDS));
-            state.lockout_until_unix = Some(deadline);
-            state.failed_attempts = 0;
-            state.last_observed_unix = Some(last_seen);
-            return Ok(PinAuthOutcome::LockedOut {
-                until_unix: deadline,
-            });
-        }
+    if let Some(last_seen) = state
+        .last_observed_unix
+        .filter(|last_seen| now_unix < *last_seen)
+    {
+        let deadline = state
+            .lockout_until_unix
+            .unwrap_or(0)
+            .max(last_seen.saturating_add(LOCKOUT_SECONDS));
+        state.lockout_until_unix = Some(deadline);
+        state.failed_attempts = 0;
+        state.last_observed_unix = Some(last_seen);
+        return Ok(PinAuthOutcome::LockedOut {
+            until_unix: deadline,
+        });
     }
 
     state.last_observed_unix = Some(now_unix);
