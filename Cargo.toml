@@ -30,4 +30,5 @@ aes-gcm = "0.10"
 getrandom = "0.2"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 tempfile = "3.15"
+base64 = "0.22"
 
