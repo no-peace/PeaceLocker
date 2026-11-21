@@ -42,7 +42,8 @@ pub struct RuleMatch {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
-    CompleteSetup, Unlock, Lock, SetMonitoringEnabled(bool), AddRule(Rule), RemoveRule(u64),
+    CompleteSetup, Unlock, Lock, SetMonitoringEnabled(bool), AddRule(Rule), ReplaceRule(Rule),
+    SetRuleEnabled { id: u64, enabled: bool }, RemoveRule(u64),
     SetMonitorStatus { source: MonitorSource, status: MonitorStatus },
 }
 
@@ -140,6 +141,21 @@ impl CoreEngine {
                 self.rules.insert(rule.id, rule); self.revision = revision;
                 Ok(CommandResult::RuleAdded { revision })
             }
+            Command::ReplaceRule(rule) => {
+                rule.validate()?;
+                if !self.rules.contains_key(&rule.id) { return Err(CommandError::RuleNotFound); }
+                let revision = self.next_revision()?;
+                self.rules.insert(rule.id, rule); self.revision = revision;
+                Ok(CommandResult::RuleAdded { revision })
+            }
+            Command::SetRuleEnabled { id, enabled } => {
+                let Some(existing) = self.rules.get(&id) else { return Err(CommandError::RuleNotFound); };
+                if existing.enabled == enabled { return Ok(CommandResult::NoChange { revision: self.revision }); }
+                let revision = self.next_revision()?;
+                if let Some(rule) = self.rules.get_mut(&id) { rule.enabled = enabled; }
+                self.revision = revision;
+                Ok(CommandResult::StateChanged { revision })
+            }
             Command::RemoveRule(id) => {
                 if !self.rules.contains_key(&id) { return Err(CommandError::RuleNotFound); }
                 let revision = self.next_revision()?;
@@ -199,6 +215,19 @@ mod tests {
         assert_eq!(engine.execute(Command::AddRule(rule(1))), Err(CommandError::DuplicateRule));
         assert!(matches!(engine.execute(Command::RemoveRule(1)), Ok(CommandResult::RuleRemoved { revision: 2 })));
         assert!(engine.snapshot().rules.is_empty());
+    }
+    #[test]
+    fn rule_can_be_replaced_and_enabled_state_toggled() {
+        let mut engine = CoreEngine::new();
+        engine.execute(Command::AddRule(rule(4))).unwrap();
+        let mut replacement = Rule::new(4, "Updated", RuleTargetKind::ProcessName, "new.exe", RuleAction::Notify).unwrap();
+        replacement.enabled = false;
+        engine.execute(Command::ReplaceRule(replacement)).unwrap();
+        assert_eq!(engine.snapshot().rules[0].label, "Updated");
+        assert!(!engine.snapshot().rules[0].enabled);
+        engine.execute(Command::SetRuleEnabled { id: 4, enabled: true }).unwrap();
+        assert!(engine.snapshot().rules[0].enabled);
+        assert_eq!(engine.execute(Command::SetRuleEnabled { id: 4, enabled: true }).unwrap(), CommandResult::NoChange { revision: 3 });
     }
     #[test]
     fn matching_rules_are_returned_in_id_order() {
