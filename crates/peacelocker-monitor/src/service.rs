@@ -2,7 +2,7 @@
 
 use std::{
     fmt,
-    sync::{atomic::{AtomicUsize, Ordering}, mpsc::{self, Receiver, Sender}, Arc, Condvar, Mutex},
+    sync::{mpsc::{self, Receiver, Sender}, Arc, Condvar, Mutex},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -33,6 +33,15 @@ impl fmt::Display for PollingConfigError {
 impl std::error::Error for PollingConfigError {}
 
 #[derive(Debug)]
+pub enum PollingStartError { InvalidConfig(PollingConfigError), WorkerSpawn(std::io::Error) }
+impl fmt::Display for PollingStartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self { Self::InvalidConfig(error) => write!(f, "{error}"), Self::WorkerSpawn(error) => write!(f, "could not start process monitor worker: {error}") }
+    }
+}
+impl std::error::Error for PollingStartError {}
+
+#[derive(Debug)]
 pub struct ProcessPollResult {
     pub processes: Vec<ProcessSnapshot>,
     pub inaccessible_count: u32,
@@ -53,19 +62,19 @@ pub struct ProcessMonitorService {
 }
 
 impl ProcessMonitorService {
-    pub fn start<F, E>(config: PollingConfig, mut poll: F) -> Result<(Self, Receiver<ProcessMonitorMessage>), PollingConfigError>
+    pub fn start<F, E>(config: PollingConfig, mut poll: F) -> Result<(Self, Receiver<ProcessMonitorMessage>), PollingStartError>
     where
         F: FnMut() -> Result<ProcessPollResult, E> + Send + 'static,
         E: fmt::Display + Send + 'static,
     {
-        let config = config.validate()?;
+        let config = config.validate().map_err(PollingStartError::InvalidConfig)?;
         let (sender, receiver) = mpsc::channel();
         let stop = Arc::new((Mutex::new(false), Condvar::new()));
         let worker_stop = Arc::clone(&stop);
         let worker = thread::Builder::new()
             .name("peacelocker-process-monitor".into())
             .spawn(move || run_worker(config, &mut poll, sender, worker_stop))
-            .expect("failed to spawn process monitor worker");
+            .map_err(PollingStartError::WorkerSpawn)?;
         Ok((Self { stop, worker: Some(worker) }, receiver))
     }
 
