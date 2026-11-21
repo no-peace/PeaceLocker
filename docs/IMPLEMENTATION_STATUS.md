@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 4 — Windows process and Explorer observation adapters connected to the desktop UI; runtime validation pending.**
+**Phase 5 — Rule-management UI connected to the core rule commands; runtime validation pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -61,7 +61,9 @@ Remaining:
 - [ ] Add cancellation/timeouts for slow or stuck Windows queries.
 - [ ] Add live Windows integration tests.
 - [ ] Validate address-bar AutomationIds and UI Automation behavior on supported browser versions.
-- [ ] Add rule-management UI and durable event history.
+- [x] Add rule-management UI for process names, executable paths, folder paths and browser hostnames; support create, edit, enable/disable and delete through validated core commands.
+- [ ] Persist rule changes through the encrypted configuration store.
+- [ ] Add durable event history.
 
 ## Documentation
 
