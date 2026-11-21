@@ -1,58 +1,29 @@
-# Phase 4 — Monitoring Sources (Initial Process Work)
+# Phase 4 — Monitoring Sources (Supervised Process Polling)
 
 ## Scope
+This iteration adds a reusable supervised polling worker around the platform-independent process tracker. It remains only the process-monitoring slice of Phase 4.
 
-This commit starts Phase 4 with the process source. It does not claim the
-entire monitoring milestone is complete.
+## Process polling worker
+The monitor crate now provides a configurable non-zero polling interval, capped exponential retry backoff, a named worker thread, cancellation via condition variable, joined shutdown, and explicit messages for process changes, healthy snapshots, degraded polling, and shutdown. The worker accepts a polling closure so it can be tested without Win32 dependencies; the Windows adapter can supply `enumerate_processes()`.
 
-## Platform-independent process tracking
+## Event contract
+Normalized events now carry a typed `MonitorEventKind` for ordinary observations, process starts/exits, browser navigation, and Explorer changes. Process lifecycle messages are not yet converted into queued core events or rule decisions.
 
-The monitoring crate now defines:
+## Safety boundaries
+- The worker observes process metadata only; it does not suspend, terminate, or modify processes.
+- Cancellation and thread joining are explicit.
+- Failed polls are reported as degraded and retried, not treated as empty healthy snapshots.
+- Retry delay is capped.
+- Health diagnostics must not contain raw paths or secrets.
 
-- `ProcessIdentity`: PID plus process creation FILETIME.
-- `ProcessSnapshot`: identity, executable name, and optional executable path.
-- `ProcessChange`: started or exited observation.
-- `ProcessTracker`: deterministic diffing between snapshots.
+## Remaining Phase 4 work
+- Classify Win32 errors (access denied, process-exit races, other).
+- Connect Windows enumeration to the worker in the application composition root.
+- Convert process changes into normalized core events and evaluate rules.
+- Add timestamp/ID provider and bounded event bridge.
+- Implement Explorer monitoring with correct COM apartment ownership.
+- Implement supported-browser URL detection and UI Automation adapters.
+- Surface monitor health and diagnostics in the UI.
 
-A PID alone is not a process identity because Windows reuses PIDs. If the same
-PID appears with a different creation timestamp, the tracker emits an exit for
-the previous lifetime followed by a start for the new lifetime.
-
-The tracker retains the first entry for duplicate PIDs in one snapshot to
-ensure deterministic behavior. Its tests cover initial starts, unchanged
-snapshots, exits, PID reuse, and duplicate entries.
-
-## Windows enumeration adapter
-
-The Windows crate now exposes `enumerate_processes()`, implemented using
-documented Win32 APIs:
-
-- `CreateToolhelp32Snapshot`, `Process32FirstW`, and `Process32NextW`
-  enumerate process IDs and executable names.
-- `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` opens query-only handles.
-- `GetProcessTimes` obtains the creation timestamp used for lifetime identity.
-- `QueryFullProcessImageNameW` obtains the executable path where permitted.
-
-Snapshot and process handles use RAII cleanup. The adapter does not request
-administrator privileges or attempt to inspect protected process memory.
-Processes that cannot be assigned a stable creation-time identity are skipped
-and counted in `inaccessible_count`. An unavailable executable path does not
-invalidate an otherwise stable process identity.
-
-## Limitations and next work
-
-- The enumeration adapter is a one-shot snapshot, not a supervised polling
-  service. Sampling interval, backoff, cancellation, and worker supervision
-  remain to be implemented.
-- Per-process failures are currently counted together. The next iteration
-  should distinguish access denied, process exit races, and other errors.
-- Process changes are not yet bridged into core monitor events or rule
-  evaluation.
-- Explorer folder monitoring and browser URL detection are not implemented.
-- No process suspension or other enforcement is performed.
-
-## Validation status
-
-Unit tests for the platform-independent tracker are committed but not run.
-The Windows adapter has not been compiled or exercised on Windows. The current
-environment has no Rust toolchain and GitHub Actions quota is exhausted.
+## Validation
+Tests have been added but not run. Rust compilation, formatting, Clippy, and Windows runtime checks remain outstanding because the current environment has no Rust toolchain and GitHub Actions quota is exhausted.
