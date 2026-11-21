@@ -31,6 +31,7 @@ Implemented:
 - [x] Query-only handles and RAII cleanup.
 - [x] Supervised polling worker with cancellation and joined shutdown.
 - [x] Capped exponential retry backoff and explicit degraded health messages.
+- [x] Initial snapshot treated as baseline, avoiding false process-start events.
 - [x] Windows enumeration connected to opt-in desktop worker.
 - [x] Process lifecycle changes converted into normalized events.
 - [x] Core engine evaluates process-start events against configured rules.
@@ -39,6 +40,7 @@ Implemented:
 
 Remaining:
 - [ ] Classify per-process Win32 errors precisely.
+- [ ] Add cancellation/timeouts for slow or stuck Windows queries.
 - [ ] Add live Windows integration tests.
 - [ ] Implement Explorer monitoring with COM ownership.
 - [ ] Implement browser URL monitoring/UI Automation.

@@ -70,10 +70,11 @@ impl PeaceLockerApp {
                 kind, correlation_id, target };
             self.next_event_id = self.next_event_id.saturating_add(1);
             let _ = self.event_queue.push(event.clone());
-            self.matched_rule_count = self.matched_rule_count.saturating_add(self.core.evaluate_event(&event).len());
             self.last_event = format!("{:?}: {}", event.kind, event.target.value);
         }
-        while self.event_queue.pop().is_some() {}
+        while let Some(queued_event) = self.event_queue.pop() {
+            self.matched_rule_count = self.matched_rule_count.saturating_add(self.core.evaluate_event(&queued_event).len());
+        }
     }
 
     #[cfg(windows)]
