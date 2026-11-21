@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 2 — encrypted storage and legacy text-import implementation committed; validation pending.**
+**Phase 3 — core state, command engine, rules, and bounded event queue committed; validation pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -78,6 +78,31 @@ Not yet implemented:
 - [ ] Migration preview UI and explicit confirmation before applying imported settings.
 - [ ] Multi-process store locking and single-instance coordination.
 - [ ] Schema upgrade framework and multi-generation backup policy.
+
+## Phase 3 — core state, commands, and rules engine
+
+Implementation committed:
+- [x] Typed protection lifecycle and deterministic setup/lock/unlock transitions.
+- [x] Typed commands, results, errors, and monotonically increasing state revisions.
+- [x] Read-only core snapshots containing no credentials or secret material.
+- [x] Validated rules for process names, executable paths, and browser hostnames.
+- [x] Deterministic, case-insensitive exact matching with Windows path separator normalization.
+- [x] Explicit separation between rule decisions and enforcement; no action is executed by the core.
+- [x] Typed process, Explorer, and browser monitor source identifiers.
+- [x] Monitor health states for not-started, healthy, degraded, and unavailable.
+- [x] Normalized monitor event contract with IDs, timestamps, source, and correlation ID.
+- [x] Bounded in-memory event queue with drop-oldest overflow accounting and duplicate queued-ID rejection.
+- [x] Unit tests added for transitions, invalid commands, matching, monitor health, queue capacity, and duplicates.
+
+Remaining:
+- [ ] Add fake monitor source adapters for integration tests.
+- [ ] Connect core commands and snapshots to the GUI (Phase 6).
+- [ ] Persist core state changes through the encrypted store (storage/application integration work).
+
+Validation pending:
+- [ ] Cargo dependency resolution and compilation.
+- [ ] Rustfmt and Clippy.
+- [ ] Core unit tests executed.
 
 ## Validation environment
 
