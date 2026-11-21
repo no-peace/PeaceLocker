@@ -4,9 +4,14 @@
 //! exposed as a small, fail-closed wrapper for protecting the installation DEK.
 
 #[cfg(windows)]
+mod process;
+#[cfg(windows)]
 mod dpapi;
 #[cfg(windows)]
 mod legacy_import;
+
+#[cfg(windows)]
+pub use process::{ProcessEnumeration, ProcessEnumerationError, enumerate_processes};
 
 #[cfg(windows)]
 pub use legacy_import::{LegacyVaultError, import_legacy_vault};
