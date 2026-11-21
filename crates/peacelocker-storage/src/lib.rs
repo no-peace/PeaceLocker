@@ -9,7 +9,7 @@ pub use legacy::{LegacyImportReport, LegacySettings, parse_legacy_text};
 
 use peacelocker_security::{
     DataKey, EncryptedEnvelope, EncryptionError, LockoutState, SecretError, decrypt_with_aad,
-    encrypt_with_aad,
+    encrypt_with_aad, validate_pin_verifier,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -90,12 +90,9 @@ impl ConfigDocument {
             || self.revision == 0
             || self.created_at_unix == 0
             || self.updated_at_unix < self.created_at_unix
-            || self.pin_verifier.len() > 512
-            || !self.pin_verifier.starts_with("$argon2id$")
+            || validate_pin_verifier(&self.pin_verifier).is_err()
             || self.recovery_verifiers.len() > MAX_RECOVERY_VERIFIERS
-            || self.recovery_verifiers.iter().any(|value| {
-                value.len() > 512 || !value.starts_with("$argon2id$")
-            })
+            || self.recovery_verifiers.iter().any(|value| validate_pin_verifier(value).is_err())
             || !self.lockout.validate()
             || self.webhook_url.as_ref().is_some_and(|url| {
                 url.len() > 2_048 || !url.starts_with("https://")
