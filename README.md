@@ -23,7 +23,7 @@ The Rust track currently includes:
 - 128-bit one-time recovery-code generation and Argon2id verifiers.
 - Initial unit and Windows integration tests (written, not yet executed).
 
-The cryptographic building blocks are not yet integrated into the desktop unlock UI or persistent storage workflow. Lockout, atomic file storage, migration, monitoring, and enforcement are not implemented. Compilation, Clippy, tests, Windows runtime behavior, and independent security review are still pending. **Do not use the Rust rewrite to protect real data.**
+The security, lockout, and encrypted-storage primitives are not yet integrated into the desktop UI. The legacy DPAPI importer is read-only; migration preview/confirmation and TPM-wrapped legacy import remain outstanding. Monitoring and enforcement are not implemented. Compilation, Clippy, tests, Windows runtime behavior, and independent security review are still pending. **Do not use the Rust rewrite to protect real data.**
 
 ## Rust development
 
