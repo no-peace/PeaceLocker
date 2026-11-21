@@ -48,12 +48,15 @@ Implemented:
 - [x] UI displays monitor health and offers explicit start/stop controls.
 - [x] No enforcement action is taken by process rule matches.
 - [x] Reviewed the legacy Explorer-folder observation behavior and identified its COM/UI-threading and title-fallback limitations before porting.
-
-Remaining:
 - [x] Implement Explorer COM STA polling adapter and UI Start/Stop integration.
-- [ ] Validate COM enumeration, path conversion, and shutdown on supported Windows versions.
 - [x] Match canonical filesystem paths only; ignore title-derived folder names.
 - [x] Add bounded polling, cancellation, explicit health/error reporting and deterministic shutdown for Explorer monitoring.
+- [x] Implement read-only foreground browser URL observation through UI Automation for Chrome, Edge, Firefox, Brave, Vivaldi and Opera address-bar identifiers.
+- [x] Normalize browser observations to hostnames only; discard URL paths, queries and fragments before events enter the core.
+- [x] Add browser host-change tracking, supervised STA polling, duplicate suppression and UI Start/Stop controls.
+
+Remaining:
+- [ ] Validate Explorer COM enumeration, path conversion, and shutdown on supported Windows versions.
 - [ ] Classify per-process Win32 errors precisely.
 - [ ] Add cancellation/timeouts for slow or stuck Windows queries.
 - [ ] Add live Windows integration tests.

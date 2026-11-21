@@ -235,7 +235,7 @@ cargo test --workspace -- --nocapture
 
 1. Build and launch it using the commands above.
 2. The current egui window opens to the PeaceLocker overview.
-3. On Windows, locate the **Process monitoring** section.
+3. On Windows, locate the **Monitoring controls** section.
 4. Select **Start process monitor** to begin read-only process metadata polling.
 5. Review the process monitor status, inaccessible-process count, latest event and policy-match count.
 6. Select **Start Explorer monitor** to observe filesystem-backed Explorer windows.
