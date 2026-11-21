@@ -47,6 +47,121 @@ pub fn hash_pin(pin: &[u8]) -> Result<String, PinError> {
         .map_err(|_| PinError::HashingFailed)
 }
 
+
+/// Validate a stored Argon2id PHC verifier without performing a PIN guess.
+/// This checks the algorithm, version, syntax, salt/hash encoding, and cost
+/// bounds before the verifier is accepted into persistent configuration.
+pub fn validate_pin_verifier(encoded_verifier: &str) -> Result<(), PinError> {
+    if encoded_verifier.is_empty() || encoded_verifier.len() > MAX_PHC_BYTES {
+        return Err(PinError::InvalidVerifier);
+    }
+    let parts: Vec<&str> = encoded_verifier.split('
+///
+/// Bounds are checked before invoking Argon2 so attacker-controlled PHC
+/// parameters cannot request unbounded memory or CPU.
+pub fn verify_pin(pin: &[u8], encoded_verifier: &str) -> Result<(), PinError> {
+    if pin.is_empty() || pin.len() > MAX_PIN_BYTES || encoded_verifier.len() > MAX_PHC_BYTES {
+        return Err(PinError::InvalidVerifier);
+    }
+
+    let parts: Vec<&str> = encoded_verifier.split('$').collect();
+    if parts.len() != 6 || parts[1] != "argon2id" || parts[2] != "v=19" {
+        return Err(PinError::InvalidVerifier);
+    }
+
+    let mut memory = None;
+    let mut iterations = None;
+    let mut parallelism = None;
+    for item in parts[3].split(',') {
+        let Some((key, value)) = item.split_once('=') else {
+            return Err(PinError::InvalidVerifier);
+        };
+        let parsed = value.parse::<u32>().map_err(|_| PinError::InvalidVerifier)?;
+        match key {
+            "m" => memory = Some(parsed),
+            "t" => iterations = Some(parsed),
+            "p" => parallelism = Some(parsed),
+            _ => return Err(PinError::InvalidVerifier),
+        }
+    }
+    let memory = memory.ok_or(PinError::InvalidVerifier)?;
+    let iterations = iterations.ok_or(PinError::InvalidVerifier)?;
+    let parallelism = parallelism.ok_or(PinError::InvalidVerifier)?;
+    if !(MIN_MEMORY_KIB..=MAX_MEMORY_KIB).contains(&memory)
+        || !(1..=MAX_ITERATIONS).contains(&iterations)
+        || !(1..=MAX_PARALLELISM).contains(&parallelism)
+    {
+        return Err(PinError::InvalidVerifier);
+    }
+
+    let parsed = PasswordHash::new(encoded_verifier).map_err(|_| PinError::InvalidVerifier)?;
+    Argon2::default()
+        .verify_password(pin, &parsed)
+        .map_err(|_| PinError::Mismatch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pin_round_trip_and_wrong_pin() {
+        let verifier = hash_pin(b"482691").expect("hash succeeds");
+        assert!(verifier.starts_with("$argon2id$v=19$"));
+        assert_eq!(verify_pin(b"482691", &verifier), Ok(()));
+        assert_eq!(verify_pin(b"000000", &verifier), Err(PinError::Mismatch));
+    }
+
+    #[test]
+    fn each_pin_gets_a_unique_salt() {
+        let first = hash_pin(b"482691").expect("hash succeeds");
+        let second = hash_pin(b"482691").expect("hash succeeds");
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn rejects_unbounded_parameters_before_hashing() {
+        let verifier = "$argon2id$v=19$m=999999999,t=2,p=1$c2FsdHNhbHQ$YWJj";
+        assert_eq!(verify_pin(b"1234", verifier), Err(PinError::InvalidVerifier));
+    }
+
+    #[test]
+    fn rejects_empty_pin() {
+        assert_eq!(hash_pin(b""), Err(PinError::InvalidPinLength));
+    }
+}
+).collect();
+    if parts.len() != 6 || parts[1] != "argon2id" || parts[2] != "v=19" {
+        return Err(PinError::InvalidVerifier);
+    }
+    let mut memory = None;
+    let mut iterations = None;
+    let mut parallelism = None;
+    for item in parts[3].split(',') {
+        let Some((key, value)) = item.split_once('=') else {
+            return Err(PinError::InvalidVerifier);
+        };
+        let parsed = value.parse::<u32>().map_err(|_| PinError::InvalidVerifier)?;
+        match key {
+            "m" => memory = Some(parsed),
+            "t" => iterations = Some(parsed),
+            "p" => parallelism = Some(parsed),
+            _ => return Err(PinError::InvalidVerifier),
+        }
+    }
+    let memory = memory.ok_or(PinError::InvalidVerifier)?;
+    let iterations = iterations.ok_or(PinError::InvalidVerifier)?;
+    let parallelism = parallelism.ok_or(PinError::InvalidVerifier)?;
+    if !(MIN_MEMORY_KIB..=MAX_MEMORY_KIB).contains(&memory)
+        || !(1..=MAX_ITERATIONS).contains(&iterations)
+        || !(1..=MAX_PARALLELISM).contains(&parallelism)
+    {
+        return Err(PinError::InvalidVerifier);
+    }
+    PasswordHash::new(encoded_verifier).map_err(|_| PinError::InvalidVerifier)?;
+    Ok(())
+}
+
 /// Verify a PIN against a bounded Argon2id PHC verifier.
 ///
 /// Bounds are checked before invoking Argon2 so attacker-controlled PHC
