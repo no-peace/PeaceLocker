@@ -11,6 +11,6 @@ mod secret;
 
 pub use auth::{AuthError, LockoutState, PinAuthOutcome, authenticate_pin};
 pub use encryption::{EncryptedEnvelope, decrypt, decrypt_with_aad, encrypt, encrypt_with_aad};
-pub use pin::{PinError, hash_pin, verify_pin};
+pub use pin::{PinError, hash_pin, validate_pin_verifier, verify_pin};
 pub use recovery::{RecoveryCodeBundle, RecoveryCodeError, RecoveryCodeSet, generate_recovery_codes};
 pub use secret::{DataKey, SecretError};
