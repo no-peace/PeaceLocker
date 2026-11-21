@@ -1,4 +1,4 @@
-//! Monitoring source contracts, process tracking, and supervised workers.
+//! Monitoring source contracts, process, Explorer and browser trackers, and supervised workers.
 
 use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus};
 mod process;

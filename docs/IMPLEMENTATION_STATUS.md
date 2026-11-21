@@ -60,7 +60,7 @@ Remaining:
 - [ ] Classify per-process Win32 errors precisely.
 - [ ] Add cancellation/timeouts for slow or stuck Windows queries.
 - [ ] Add live Windows integration tests.
-- [x] Implement read-only active-browser URL observation through UI Automation for Chrome, Edge, Firefox, Brave, Vivaldi and Opera address-bar identifiers.\n- [x] Normalize observations to hostnames only; discard URL paths, queries and fragments before events enter the core.\n- [x] Add browser host-change tracking, supervised STA polling and UI Start/Stop controls.\n- [ ] Validate address-bar AutomationIds and UI Automation behavior on supported browser versions.
+- [ ] Validate address-bar AutomationIds and UI Automation behavior on supported browser versions.
 - [ ] Add rule-management UI and durable event history.
 
 ## Documentation
