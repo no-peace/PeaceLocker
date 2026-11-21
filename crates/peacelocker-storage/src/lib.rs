@@ -334,10 +334,11 @@ mod tests {
         let path = directory.path().join("config.json");
         let store = EncryptedStore::new(&path, TestProtector);
         store.save(&document()).unwrap();
-        let mut bytes = fs::read(&path).unwrap();
-        let index = bytes.iter().position(|byte| *byte == b'[').unwrap();
-        bytes[index] ^= 1;
-        fs::write(&path, bytes).unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let original = value["payload"]["ciphertext"][0].as_u64().unwrap();
+        value["payload"]["ciphertext"][0] = serde_json::json!(original ^ 1);
+        fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
         assert!(store.load().is_err());
     }
 
