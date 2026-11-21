@@ -76,7 +76,6 @@ Not yet implemented:
 - [ ] PIN setup/unlock/recovery UI.
 - [ ] Legacy TPM-wrapped vault migration (old persisted TPM key lifecycle needs separate compatibility work).
 - [ ] Migration preview UI and explicit confirmation before applying imported settings.
-- [ ] Migration preview and explicit confirmation.
 - [ ] Multi-process store locking and single-instance coordination.
 - [ ] Schema upgrade framework and multi-generation backup policy.
 
