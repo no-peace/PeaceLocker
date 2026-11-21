@@ -33,7 +33,7 @@ The Rust workspace currently contains these implemented foundations:
 | Desktop shell | Native egui/eframe application |
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
 | Rules | Validated process-name, executable-path and browser-host rule types; deterministic matching |
-| Event handling | Typed monitor events and bounded event queue |
+| Event handling | Typed monitor events and bounded event queue |\n| Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | PIN security | Argon2id verifier creation and verification with bounded parameters |
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |

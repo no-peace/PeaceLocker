@@ -14,6 +14,16 @@
 
 Only process-start events are considered actionable policy observations. Process-exit events are retained as lifecycle information but do not produce block/notify matches. Rule matching is exact and case-insensitive for process names and normalized Windows paths for executable paths.
 
+## Explorer monitoring implementation
+
+- A dedicated worker initializes COM as an STA and balances it with CoUninitialize on the same thread.
+- The worker enumerates IShellWindows, filters Explorer HWNDs by CabinetWClass/ExploreWClass, reads LocationURL, and accepts only file URLs that convert to local paths.
+- COM interfaces remain on the worker thread. Only owned path strings and scalar window/process identities cross to the UI.
+- HWND, process ID, and process creation time identify each window instance.
+- The UI has opt-in Start/Stop controls. Polling uses bounded exponential backoff and joined shutdown.
+- The first successful snapshot establishes a baseline; subsequent window/folder changes become normalized ExplorerChanged events and are evaluated against folder rules.
+- Virtual shell locations are ignored rather than inferred from titles. No enforcement is performed.
+
 ## Legacy Explorer behavior reviewed
 
 The legacy `monitor.cpp` implementation enumerates visible top-level Explorer windows with class names `CabinetWClass` and `ExploreWClass`. It initializes COM as a single-threaded apartment in its folder-monitor worker, creates `IShellWindows`, matches each shell browser object to the enumerated HWND, and reads its `LocationURL`. It converts file URLs to local paths where possible. If that lookup fails, it falls back to the Explorer window title.
@@ -44,7 +54,7 @@ The Rust implementation must:
 ## Remaining Phase 4 work
 
 - Platform-independent Explorer window identity and folder-change tracker added; folder rule matching uses directory boundaries.
-- Windows COM adapter and UI Start/Stop integration remain unimplemented.
+- Windows COM adapter and UI Start/Stop integration implemented; Windows runtime validation remains outstanding.
 - Classify Win32 process-query errors precisely (access denied, process-exit races, other).
 - Add timeouts or cancellation strategy for slow/stuck OS queries.
 - Improve event history presentation and rule-management UI.

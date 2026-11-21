@@ -38,6 +38,16 @@ struct PeaceLockerApp {
     process_monitor_status: String,
     #[cfg(windows)]
     inaccessible_count: u32,
+    #[cfg(windows)]
+    explorer_monitor: Option<peacelocker_windows::ExplorerMonitorService>,
+    #[cfg(windows)]
+    explorer_receiver: Option<Receiver<peacelocker_windows::ExplorerMonitorMessage>>,
+    #[cfg(windows)]
+    explorer_tracker: peacelocker_monitor::ExplorerTracker,
+    #[cfg(windows)]
+    explorer_status: String,
+    #[cfg(windows)]
+    explorer_window_count: usize,
 }
 impl Default for PeaceLockerApp {
     fn default() -> Self {
@@ -49,6 +59,11 @@ impl Default for PeaceLockerApp {
             #[cfg(windows)] process_receiver: None,
             #[cfg(windows)] process_monitor_status: "Not started".into(),
             #[cfg(windows)] inaccessible_count: 0,
+            #[cfg(windows)] explorer_monitor: None,
+            #[cfg(windows)] explorer_receiver: None,
+            #[cfg(windows)] explorer_tracker: peacelocker_monitor::ExplorerTracker::default(),
+            #[cfg(windows)] explorer_status: "Not started".into(),
+            #[cfg(windows)] explorer_window_count: 0,
         }
     }
 }
@@ -105,6 +120,78 @@ impl PeaceLockerApp {
         self.process_monitor_status = "Stopped".into();
     }
 
+
+    #[cfg(windows)]
+    fn start_explorer_monitor(&mut self) {
+        if self.explorer_monitor.is_some() { return; }
+        match peacelocker_windows::ExplorerMonitorService::start(Duration::from_secs(2)) {
+            Ok((service, receiver)) => {
+                self.explorer_monitor = Some(service);
+                self.explorer_receiver = Some(receiver);
+                self.explorer_status = "Starting".into();
+                self.explorer_tracker.clear();
+                self.monitor_error = None;
+            }
+            Err(error) => self.monitor_error = Some(error.to_string()),
+        }
+    }
+
+    #[cfg(windows)]
+    fn stop_explorer_monitor(&mut self) {
+        if let Some(mut service) = self.explorer_monitor.take() { service.stop(); }
+        self.explorer_receiver = None;
+        self.explorer_tracker.clear();
+        self.explorer_window_count = 0;
+        self.explorer_status = "Stopped".into();
+    }
+
+    #[cfg(windows)]
+    fn handle_explorer_change(&mut self, change: peacelocker_monitor::ExplorerChange) {
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default()
+            .as_millis().min(u64::MAX as u128) as u64;
+        let correlation_id = Some(((change.identity.process_id as u128) << 64)
+            | change.identity.process_creation_time_100ns as u128);
+        let event = MonitorEvent {
+            id: self.next_event_id,
+            occurred_at_unix_ms: timestamp,
+            source: MonitorSource::Explorer,
+            kind: MonitorEventKind::ExplorerChanged,
+            correlation_id,
+            target: ObservedTarget::new(RuleTargetKind::FolderPath, change.folder_path),
+        };
+        self.next_event_id = self.next_event_id.saturating_add(1);
+        let _ = self.event_queue.push(event.clone());
+        self.last_event = format!("Explorer folder: {}", event.target.value);
+        while let Some(queued_event) = self.event_queue.pop() {
+            self.matched_rule_count = self.matched_rule_count.saturating_add(
+                self.core.evaluate_event(&queued_event).len()
+            );
+        }
+    }
+
+    #[cfg(windows)]
+    fn drain_explorer_messages(&mut self) {
+        let messages: Vec<_> = self.explorer_receiver.as_ref()
+            .map(|receiver| receiver.try_iter().collect()).unwrap_or_default();
+        for message in messages {
+            match message {
+                peacelocker_windows::ExplorerMonitorMessage::Snapshot(observations) => {
+                    self.explorer_window_count = observations.len();
+                    self.explorer_status = "Healthy".into();
+                    let changes = self.explorer_tracker.update(observations);
+                    for change in changes { self.handle_explorer_change(change); }
+                }
+                peacelocker_windows::ExplorerMonitorMessage::Degraded(error) => {
+                    self.explorer_status = "Degraded".into();
+                    self.monitor_error = Some(error);
+                }
+                peacelocker_windows::ExplorerMonitorMessage::Stopped => {
+                    self.explorer_status = "Stopped".into();
+                }
+            }
+        }
+    }
+
     #[cfg(windows)]
     fn drain_process_messages(&mut self) {
         let messages: Vec<_> = self.process_receiver.as_ref()
@@ -133,6 +220,7 @@ impl eframe::App for PeaceLockerApp {
     fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(windows)]
         self.drain_process_messages();
+        self.drain_explorer_messages();
 
         egui::TopBottomPanel::top("top_bar").show(context, |ui| {
             ui.horizontal(|ui| {
@@ -168,6 +256,13 @@ impl eframe::App for PeaceLockerApp {
                         if self.process_monitor.is_some() && ui.button("Stop monitor").clicked() { self.stop_process_monitor(); }
                     });
                     ui.label(format!("Processes inaccessible to query: {}", self.inaccessible_count));
+                    ui.separator();
+                    ui.label(format!("Explorer monitor: {}", self.explorer_status));
+                    ui.label(format!("Explorer filesystem windows: {}", self.explorer_window_count));
+                    ui.horizontal(|ui| {
+                        if self.explorer_monitor.is_none() && ui.button("Start Explorer monitor").clicked() { self.start_explorer_monitor(); }
+                        if self.explorer_monitor.is_some() && ui.button("Stop Explorer monitor").clicked() { self.stop_explorer_monitor(); }
+                    });
                 }
                 ui.label(format!("Last event: {}", self.last_event));
                 ui.label(format!("Policy matches: {}", self.matched_rule_count));
@@ -178,12 +273,12 @@ impl eframe::App for PeaceLockerApp {
             ui.group(|ui| {
                 ui.heading("Implementation status");
                 ui.label("The Windows process enumerator now feeds the supervised worker. Process lifecycle changes are normalized and evaluated against core rules.");
-                ui.label("Explorer folder monitoring, browser URL monitoring, rule-management UI, and encrypted-store integration remain incomplete.");
+                ui.label("Browser URL monitoring, rule-management UI, and encrypted-store integration remain incomplete.");
                 ui.label(format!("Runtime state: {}", self.snapshot.status_label()));
             });
         });
         #[cfg(windows)]
-        if self.process_monitor.is_some() { context.request_repaint_after(Duration::from_millis(200)); }
+        if self.process_monitor.is_some() || self.explorer_monitor.is_some() { context.request_repaint_after(Duration::from_millis(200)); }
     }
 }
 
