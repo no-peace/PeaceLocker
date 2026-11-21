@@ -15,5 +15,6 @@ windows-sys = { version = "0.59", features = [
 peacelocker-security = { path = "../peacelocker-security" }
 peacelocker-storage = { path = "../peacelocker-storage" }
 base64.workspace = true
+zeroize.workspace = true
 serde.workspace = true
 thiserror.workspace = true
