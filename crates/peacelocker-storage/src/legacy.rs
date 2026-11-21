@@ -211,6 +211,13 @@ mod tests {
     }
 
     #[test]
+    fn blocked_item_delimiters_match_legacy_parser() {
+        let report = parse_legacy_text("b=url|example|with-pipe|Example label\\n").unwrap();
+        assert_eq!(report.settings.blocked_items[0].value, "example|with-pipe");
+        assert_eq!(report.settings.blocked_items[0].label, "Example label");
+    }
+
+    #[test]
     fn rejects_plaintext_http_webhook() {
         let report = parse_legacy_text("webhook=http://example.invalid/hook\n").unwrap();
         assert!(report.settings.webhook_url.is_none());
