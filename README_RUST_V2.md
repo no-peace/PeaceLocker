@@ -16,10 +16,10 @@ The workspace currently contains:
 - 128-bit single-use recovery codes stored as Argon2id verifiers.
 - Versioned encrypted configuration store with fresh DEKs, DPAPI wrapping, atomic replacement, and a validated backup.
 - Persisted three-attempt/six-hour lockout policy with clock-rollback handling.
-- Read-only importer for non-credential settings from the legacy text config.
+- Read-only importer for non-credential settings from legacy DPAPI-wrapped vaults and text configs; TPM-wrapped files are not yet supported.
 - Initial unit and Windows integration tests (not yet run).
 
-These are security and storage primitives, not a completed application security workflow. The GUI is not yet wired to the store or lockout service. Automatic migration of the legacy encrypted binary configuration and monitoring are not implemented.
+These are security and storage primitives, not a completed application security workflow. The GUI is not yet wired to the store or lockout service. Migration preview/confirmation and automatic migration orchestration are not implemented. TPM-wrapped legacy vaults, monitoring, and enforcement are not supported yet.
 
 ## Build on Windows
 
@@ -44,6 +44,6 @@ cargo run -p peacelocker-app
 
 ## Important limitations
 
-The code has not yet been compiled or tested. DPAPI is current-user scoped; TPM protection is not implemented. Argon2id parameters still need hardware benchmarking. PIN lockout and encrypted storage primitives exist but are not wired into the GUI. Legacy encrypted binary migration, monitoring, and enforcement remain unimplemented. Do not use this branch to protect real data.
+The code has not yet been compiled or tested. DPAPI is current-user scoped; TPM protection is not implemented. Argon2id parameters still need hardware benchmarking. PIN lockout and encrypted storage primitives exist but are not wired into the GUI. Legacy TPM-wrapped vault migration, monitoring, and enforcement remain unimplemented. Do not use this branch to protect real data.
 
 The legacy C++ implementation remains in the repository as a reference. Do not remove or overwrite it as part of the Rust rewrite.
