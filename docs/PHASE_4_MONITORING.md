@@ -1,6 +1,6 @@
-# Phase 4 — Windows process monitoring integration
+# Phase 4 — Windows monitoring
 
-## Implemented in this increment
+## Process monitoring integration
 
 - The Windows process enumerator is supplied to the supervised polling service by the desktop application.
 - The desktop UI has explicit Start/Stop controls; monitoring does not start automatically.
@@ -10,9 +10,28 @@
 - Core evaluation only reports policy matches. It does not suspend, terminate, or block processes.
 - The UI reports monitor health, inaccessible-process count, latest event, and number of policy matches.
 
-## Rule evaluation semantics
+## Process rule evaluation
 
 Only process-start events are considered actionable policy observations. Process-exit events are retained as lifecycle information but do not produce block/notify matches. Rule matching is exact and case-insensitive for process names and normalized Windows paths for executable paths.
+
+## Legacy Explorer behavior reviewed
+
+The legacy `monitor.cpp` implementation enumerates visible top-level Explorer windows with class names `CabinetWClass` and `ExploreWClass`. It initializes COM as a single-threaded apartment in its folder-monitor worker, creates `IShellWindows`, matches each shell browser object to the enumerated HWND, and reads its `LocationURL`. It converts file URLs to local paths where possible. If that lookup fails, it falls back to the Explorer window title.
+
+The legacy rule test first uses a path-prefix comparison and then falls back to a folder-name substring search. That fallback can produce false positives (for example, similarly named sibling folders or unrelated titles). The legacy worker also owns COM state in a detached thread and uses polling/sleep loops; the rewrite must not copy those lifetime and cancellation weaknesses.
+
+## Explorer implementation requirements
+
+The Rust implementation must:
+
+1. Run all COM initialization, interface creation, calls, and interface release on one dedicated STA worker thread. Do not pass COM interface pointers to the egui/UI thread or another worker.
+2. Pair successful COM initialization with `CoUninitialize` on the same thread, including error and shutdown paths.
+3. Identify Explorer windows by HWND and process identity; handle windows closing or being replaced between enumeration and COM lookup.
+4. Prefer a canonical local filesystem path derived from the shell browser's current location. URI decoding and path conversion failures must be reported as unavailable observations, not silently treated as paths.
+5. Normalize paths consistently and compare directory components with a separator boundary. A path such as `C:\\Data\\Private2` must not match a protected `C:\\Data\\Private` rule.
+6. Avoid treating a window-title or folder-name substring as a verified path. If a compatibility title heuristic is ever added, it must be explicitly labeled lower-confidence and separately configurable.
+7. Use a supervised worker with bounded polling, cooperative cancellation, bounded retry/backoff, explicit health messages and joined shutdown.
+8. Emit normalized folder-navigation observations through the existing bounded event queue. Observation is not enforcement.
 
 ## Safety boundaries
 
@@ -20,16 +39,15 @@ Only process-start events are considered actionable policy observations. Process
 - Windows process handles are query-only.
 - No elevation is requested.
 - The app does not take enforcement action based on a matching rule.
-- No raw paths are written into monitor diagnostic error codes.
-- Cancellation wakes the polling worker between polls; a Win32 enumeration already in progress must return before the worker can join.
+- Cancellation wakes the process polling worker between polls; a Win32 enumeration already in progress must return before the worker can join.
 
 ## Remaining Phase 4 work
 
-- Classify Win32 errors precisely (access denied, process-exit races, other).
-- Add timeouts or cancellation strategy for a slow/stuck OS query.
+- Implement Explorer window/folder observation using the requirements above.
+- Classify Win32 process-query errors precisely (access denied, process-exit races, other).
+- Add timeouts or cancellation strategy for slow/stuck OS queries.
 - Improve event history presentation and rule-management UI.
 - Persist rule configuration.
-- Implement Explorer folder monitoring with COM apartment ownership.
 - Implement supported-browser URL detection and UI Automation adapters.
 - Add live Windows integration tests.
 
