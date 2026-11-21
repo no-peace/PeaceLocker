@@ -316,14 +316,14 @@ mod tests {
         let store = EncryptedStore::new(&path, TestProtector);
         let first = document();
         store.save(&first).unwrap();
-        assert_eq!(store.load().unwrap(), first);
+        assert!(store.load().unwrap() == first);
 
         let mut second = first.clone();
         second.revision = 2;
         second.updated_at_unix += 1;
         store.save(&second).unwrap();
-        assert_eq!(store.load().unwrap(), second);
-        assert_eq!(store.load_backup().unwrap(), first);
+        assert!(store.load().unwrap() == second);
+        assert!(store.load_backup().unwrap() == first);
     }
 
     #[test]
@@ -362,8 +362,8 @@ mod tests {
         store.save(&second).unwrap();
         fs::write(&path, b"corrupt").unwrap();
         assert!(store.save(&first).is_err());
-        assert_eq!(store.load_backup().unwrap(), first);
+        assert!(store.load_backup().unwrap() == first);
         store.restore_backup().unwrap();
-        assert_eq!(store.load().unwrap(), first);
+        assert!(store.load().unwrap() == first);
     }
 }
