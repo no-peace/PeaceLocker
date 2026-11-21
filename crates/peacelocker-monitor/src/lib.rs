@@ -4,7 +4,7 @@ use peacelocker_core::{MonitorEvent, MonitorHealth, MonitorSource, MonitorStatus
 mod process;
 mod service;
 pub use process::{ProcessChange, ProcessChangeKind, ProcessIdentity, ProcessSnapshot, ProcessTracker};
-pub use service::{PollingConfig, PollingConfigError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult};
+pub use service::{PollingConfig, PollingConfigError, ProcessMonitorMessage, ProcessMonitorService, ProcessPollResult, PollingStartError};
 
 pub trait MonitorAdapter: Send {
     fn source(&self) -> MonitorSource;
