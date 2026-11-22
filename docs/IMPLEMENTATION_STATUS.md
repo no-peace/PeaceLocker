@@ -4,7 +4,7 @@ Last updated: 2026-11-21
 
 ## Current milestone
 
-**Phase 6 — Typed rules are now part of the encrypted configuration schema; desktop persistence wiring remains blocked on PIN setup/unlock.**
+**Phase 7 — Windows PIN-session orchestration is implemented; egui setup/unlock screens and app wiring remain.**
 
 Branch: `rewrite/rust-v2`
 
@@ -24,7 +24,7 @@ Validation pending: compilation, formatting, Clippy, security tests, DPAPI integ
 
 Implemented: versioned encrypted configuration document, fresh DEK per write, DPAPI-protected key, authenticated envelope, bounded I/O, atomic replacement, validated backup/restore, lockout state, typed validated rule collection with backward-compatible default for older schema-v1 files, read-only legacy text parser, DPAPI legacy importer, and rejection of plaintext fallback.
 
-Remaining: application data-directory/ACL handling, desktop app/store integration, PIN and recovery UI, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
+Implemented additionally: Windows DPAPI-backed PIN session orchestration for first-run setup and unlock, persisted failed-attempt/lockout transitions, one-time recovery-code generation, and authenticated rule-snapshot persistence API.\n\nRemaining: egui PIN/recovery UI, application data-directory/ACL handling, desktop app/session lifecycle integration, recovery-code unlock/consumption, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
 
 ## Phase 3 — core state, commands, and rules engine
 
@@ -63,7 +63,7 @@ Remaining:
 - [ ] Validate address-bar AutomationIds and UI Automation behavior on supported browser versions.
 - [x] Add rule-management UI for process names, executable paths, folder paths and browser hostnames; support create, edit, enable/disable and delete through validated core commands.
 - [x] Add typed, bounded rule records to the encrypted configuration document; validate each rule and reject duplicate IDs.
-- [ ] Load and save editor changes through the encrypted store in the desktop app (requires first-run PIN setup/unlock flow).
+- [x] Add Windows PIN-session orchestration over the DPAPI encrypted store, with persisted lockout state and authenticated rule-snapshot save API.\n- [ ] Build egui first-run setup/unlock and recovery-code presentation screens.\n- [ ] Load and save editor changes through the encrypted store in the desktop app.
 - [ ] Add durable event history.
 
 ## Documentation
