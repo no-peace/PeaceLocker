@@ -36,7 +36,7 @@ The Rust workspace currently contains these implemented foundations:
 | Event handling | Typed monitor events and bounded event queue |
 | Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | Browser observation | STA UI Automation worker; foreground supported-browser address-bar only; hostname-only events |
-| PIN security | Argon2id verifier creation and verification with bounded parameters |
+| PIN security | Argon2id verifier creation and verification with bounded parameters; Windows DPAPI-backed setup/unlock session orchestration API (not yet exposed in GUI) |
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |
 | Recovery | 128-bit recovery-code generation and Argon2id verifiers |
@@ -51,7 +51,7 @@ These are foundations and are not equivalent to a finished end-user feature. In 
 
 The following are not available as complete application workflows:
 
-- First-run PIN setup, unlock, PIN change and recovery UI.
+- First-run PIN setup, unlock, PIN change and recovery UI (session orchestration API exists, but the egui workflow is not connected yet).
 - Connecting the GUI to the encrypted configuration store and persisted lockout service.
 - Migration preview, confirmation and complete migration orchestration.
 - Explorer folder enforcement.
@@ -291,7 +291,7 @@ PeaceLocker/
 
 ## Configuration and data
 
-The encrypted-storage crate now supports typed rule records inside the encrypted configuration document. The desktop UI still does not create or load a user configuration: app integration depends on a first-run PIN setup/unlock workflow and a safe application data-directory resolver.
+The encrypted-storage crate now supports typed rule records inside the encrypted configuration document. The Windows crate now exposes a DPAPI-backed PIN session API for first-run setup, unlock, persisted lockout transitions and saving rule snapshots. The desktop UI still does not invoke this API or create/load a user configuration; egui setup/unlock screens and a safe application data-directory resolver are still required.
 
 When the storage workflow is integrated, the intended design is:
 
@@ -365,7 +365,7 @@ Read these documents for design details and implementation decisions:
 - [Phase 1 — security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
 - [Phase 2 — storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
 - [Phase 3 — core engine](docs/PHASE_3_CORE_ENGINE.md)
-- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)
+- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)\n- [Phase 7 — PIN session foundation](docs/PHASE_7_PIN_SESSION.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Contributing
