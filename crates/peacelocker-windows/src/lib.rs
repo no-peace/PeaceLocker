@@ -32,4 +32,4 @@ pub use dpapi::{
 };
 
 #[cfg(windows)]
-pub use security_session::{SecuritySession, SecuritySessionError, SetupResult};
+pub use security_session::{SecuritySession, SecuritySessionError, SetupResult, UnlockResult};
