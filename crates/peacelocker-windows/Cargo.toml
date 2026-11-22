@@ -22,6 +22,7 @@ windows = { version = "0.59", features = [
 url.workspace = true
 
 [dependencies]
+peacelocker-core = { path = "../peacelocker-core" }
 peacelocker-monitor = { path = "../peacelocker-monitor" }
 peacelocker-security = { path = "../peacelocker-security" }
 peacelocker-storage = { path = "../peacelocker-storage" }
