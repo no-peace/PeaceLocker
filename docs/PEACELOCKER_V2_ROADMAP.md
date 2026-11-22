@@ -51,3 +51,18 @@ no process suspension, termination, or filesystem blocking is implemented.
 - [ ] Add durable event history and notification delivery.
 
 The editor is a management interface only. `Block` is currently a stored policy action and is not enforced by the operating system or application.
+
+
+## Phase 7 — PIN session foundation
+
+- [x] Add Windows `SecuritySession` orchestration over the encrypted configuration store and current-user DPAPI.
+- [x] Add first-run PIN verifier and one-time recovery-code setup API.
+- [x] Refuse to overwrite an existing configuration during setup.
+- [x] Persist failed PIN attempts and lockout state before returning authentication outcomes.
+- [x] Ensure failed or locked-out authentication never returns an authenticated session.
+- [x] Add an authenticated rule-snapshot persistence API that preserves unrelated settings.
+- [ ] Build egui first-run setup, PIN confirmation, unlock and recovery-code screens.
+- [ ] Resolve and secure the per-user data directory and verify Windows ACLs.
+- [ ] Connect app startup and rule CRUD to the authenticated session.
+- [ ] Implement recovery-code consumption and PIN change workflows.
+- [ ] Validate compilation, tests and Windows DPAPI runtime behavior.
