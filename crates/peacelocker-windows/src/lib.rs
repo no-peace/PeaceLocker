@@ -10,6 +10,8 @@ mod explorer;
 mod dpapi;
 #[cfg(windows)]
 mod legacy_import;
+#[cfg(windows)]
+mod security_session;
 
 #[cfg(windows)]
 pub use browser::{BrowserMonitorMessage, BrowserMonitorService, BrowserMonitorStartError};
@@ -28,3 +30,6 @@ pub use dpapi::{
     DpapiError, DpapiKeyProtector, DpapiProtectedEnvelope, ProtectedStorageError, open_configuration,
     protect_data_key, seal_configuration, unprotect_data_key,
 };
+
+#[cfg(windows)]
+pub use security_session::{SecuritySession, SecuritySessionError, SetupResult};
