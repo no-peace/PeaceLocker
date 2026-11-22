@@ -38,7 +38,13 @@ pub struct SetupResult {
 
 /// Authenticated configuration session. Keep this object alive only while the
 /// app is unlocked. Dropping it releases the in-memory configuration.
-pub enum UnlockResult {\n    Authenticated(SecuritySession),\n    Rejected { attempts_remaining: u8 },\n    LockedOut { until_unix: u64 },\n}\n\npub struct SecuritySession {
+pub enum UnlockResult {
+    Authenticated(SecuritySession),
+    Rejected { attempts_remaining: u8 },
+    LockedOut { until_unix: u64 },
+}
+
+pub struct SecuritySession {
     store: EncryptedStore<DpapiKeyProtector>,
     config: ConfigDocument,
 }
@@ -96,7 +102,11 @@ impl SecuritySession {
         config.revision = config.revision.saturating_add(1);
         config.updated_at_unix = config.updated_at_unix.max(now_unix);
         store.save(&config)?;
-        match outcome {\n            PinAuthOutcome::Authenticated => Ok(UnlockResult::Authenticated(Self { store, config })),\n            PinAuthOutcome::Rejected { attempts_remaining } => Ok(UnlockResult::Rejected { attempts_remaining }),\n            PinAuthOutcome::LockedOut { until_unix } => Ok(UnlockResult::LockedOut { until_unix }),\n        }
+        match outcome {
+            PinAuthOutcome::Authenticated => Ok(UnlockResult::Authenticated(Self { store, config })),
+            PinAuthOutcome::Rejected { attempts_remaining } => Ok(UnlockResult::Rejected { attempts_remaining }),
+            PinAuthOutcome::LockedOut { until_unix } => Ok(UnlockResult::LockedOut { until_unix }),
+        }
     }
 
     pub fn config(&self) -> &ConfigDocument {
