@@ -7,7 +7,7 @@ use peacelocker_security::{
     AuthError, LockoutState, PinAuthOutcome, PinError, RecoveryCodeError,
     authenticate_pin, generate_recovery_codes, hash_pin,
 };
-use peacelocker_storage::{ConfigDocument, EncryptedStore, KeyProtector, StoreError};
+use peacelocker_storage::{ConfigDocument, EncryptedStore, StoreError};
 use thiserror::Error;
 
 use crate::DpapiKeyProtector;
@@ -38,7 +38,7 @@ pub struct SetupResult {
 
 /// Authenticated configuration session. Keep this object alive only while the
 /// app is unlocked. Dropping it releases the in-memory configuration.
-pub struct SecuritySession {
+pub enum UnlockResult {\n    Authenticated(SecuritySession),\n    Rejected { attempts_remaining: u8 },\n    LockedOut { until_unix: u64 },\n}\n\npub struct SecuritySession {
     store: EncryptedStore<DpapiKeyProtector>,
     config: ConfigDocument,
 }
@@ -81,7 +81,7 @@ impl SecuritySession {
         path: impl Into<std::path::PathBuf>,
         pin: &[u8],
         now_unix: u64,
-    ) -> Result<(Self, PinAuthOutcome), SecuritySessionError> {
+    ) -> Result<UnlockResult, SecuritySessionError> {
         let store = EncryptedStore::new(path, DpapiKeyProtector);
         if !store.exists() {
             return Err(SecuritySessionError::NotConfigured);
@@ -96,7 +96,7 @@ impl SecuritySession {
         config.revision = config.revision.saturating_add(1);
         config.updated_at_unix = config.updated_at_unix.max(now_unix);
         store.save(&config)?;
-        Ok((Self { store, config }, outcome))
+        match outcome {\n            PinAuthOutcome::Authenticated => Ok(UnlockResult::Authenticated(Self { store, config })),\n            PinAuthOutcome::Rejected { attempts_remaining } => Ok(UnlockResult::Rejected { attempts_remaining }),\n            PinAuthOutcome::LockedOut { until_unix } => Ok(UnlockResult::LockedOut { until_unix }),\n        }
     }
 
     pub fn config(&self) -> &ConfigDocument {
