@@ -183,6 +183,18 @@ impl<P: KeyProtector> EncryptedStore<P> {
         self.load_from_path(&backup_path(&self.path))
     }
 
+    /// Create the first encrypted generation without replacing an existing file.
+    ///
+    /// The final rename is no-clobber, so concurrent first-run setup attempts
+    /// cannot overwrite a configuration created by another process.
+    pub fn create(&self, document: &ConfigDocument) -> Result<(), StoreError> {
+        document.validate()?;
+        let parent = self.path.parent().ok_or(StoreError::InvalidPath)?;
+        fs::create_dir_all(parent)?;
+        let bytes = encode_document(&self.protector, document)?;
+        atomic_create(&self.path, &bytes)
+    }
+
     /// Save a new encrypted generation. The previous authenticated primary
     /// is retained as one backup before atomic replacement.
     pub fn save(&self, document: &ConfigDocument) -> Result<(), StoreError> {
@@ -196,26 +208,7 @@ impl<P: KeyProtector> EncryptedStore<P> {
             atomic_write(&backup_path(&self.path), &old_bytes)?;
         }
 
-        let plaintext = Zeroizing::new(serde_json::to_vec(document)?);
-        if plaintext.len() > MAX_CONFIG_BYTES {
-            return Err(StoreError::FileTooLarge);
-        }
-
-        let key = DataKey::generate()?;
-        let protected_dek = self.protector.protect_key(&key)?;
-        if protected_dek.is_empty() || protected_dek.len() > MAX_PROTECTED_KEY_BYTES {
-            return Err(StoreError::InvalidEnvelope);
-        }
-        let payload = encrypt_with_aad(&key, &plaintext, &aad_for(&protected_dek))?;
-        let envelope = StoreEnvelope {
-            format_version: ENVELOPE_VERSION,
-            protected_dek,
-            payload,
-        };
-        let bytes = serde_json::to_vec(&envelope)?;
-        if bytes.len() as u64 > MAX_ENVELOPE_BYTES {
-            return Err(StoreError::FileTooLarge);
-        }
+        let bytes = encode_document(&self.protector, document)?;
         atomic_write(&self.path, &bytes)
     }
 
@@ -253,6 +246,33 @@ impl<P: KeyProtector> EncryptedStore<P> {
     }
 }
 
+fn encode_document<P: KeyProtector>(
+    protector: &P,
+    document: &ConfigDocument,
+) -> Result<Vec<u8>, StoreError> {
+    let plaintext = Zeroizing::new(serde_json::to_vec(document)?);
+    if plaintext.len() > MAX_CONFIG_BYTES {
+        return Err(StoreError::FileTooLarge);
+    }
+
+    let key = DataKey::generate()?;
+    let protected_dek = protector.protect_key(&key)?;
+    if protected_dek.is_empty() || protected_dek.len() > MAX_PROTECTED_KEY_BYTES {
+        return Err(StoreError::InvalidEnvelope);
+    }
+    let payload = encrypt_with_aad(&key, &plaintext, &aad_for(&protected_dek))?;
+    let envelope = StoreEnvelope {
+        format_version: ENVELOPE_VERSION,
+        protected_dek,
+        payload,
+    };
+    let bytes = serde_json::to_vec(&envelope)?;
+    if bytes.len() as u64 > MAX_ENVELOPE_BYTES {
+        return Err(StoreError::FileTooLarge);
+    }
+    Ok(bytes)
+}
+
 fn aad_for(protected_dek: &[u8]) -> Vec<u8> {
     let mut aad = Vec::with_capacity(CONFIG_AAD.len() + protected_dek.len());
     aad.extend_from_slice(CONFIG_AAD);
@@ -278,6 +298,19 @@ fn read_bounded(path: &Path) -> Result<Vec<u8>, StoreError> {
         return Err(StoreError::FileTooLarge);
     }
     Ok(bytes)
+}
+
+fn atomic_create(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
+    let parent = path.parent().ok_or(StoreError::InvalidPath)?;
+    fs::create_dir_all(parent)?;
+    let mut temporary = NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist_noclobber(path)?;
+    if let Ok(directory) = fs::File::open(parent) {
+        let _ = directory.sync_all();
+    }
+    Ok(())
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
@@ -316,6 +349,20 @@ mod tests {
 
     fn document() -> ConfigDocument {
         ConfigDocument::new(hash_pin(b"correct horse").unwrap(), Vec::new(), 1_800_000_000)
+    }
+
+    #[test]
+    fn create_never_overwrites_an_existing_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("config.json");
+        let store = EncryptedStore::new(&path, TestProtector);
+        let first = document();
+        store.create(&first).unwrap();
+        let mut second = first.clone();
+        second.revision = 2;
+        second.updated_at_unix += 1;
+        assert!(store.create(&second).is_err());
+        assert_eq!(store.load().unwrap(), first);
     }
 
     #[test]
