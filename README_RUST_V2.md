@@ -1,45 +1,44 @@
 # PeaceLocker 2.0 — Rust rewrite
 
-The Rust rewrite is developed separately from the legacy C++ application on the `rewrite/rust-v2` branch. The root [README.md](README.md) is the canonical guide for prerequisites, setup, build commands, running the desktop application, checks, current behavior and troubleshooting.
+The Rust rewrite is developed on `rewrite/rust-v2`. The root [README.md](README.md) is the canonical guide for setup, build commands, current application behavior, and limitations.
 
-> **Development warning:** this is not a production-ready security product. The GUI currently contains an egui shell and an opt-in, read-only Windows process monitor. Security and encrypted-storage primitives are not yet wired into the UI. Folder/browser monitoring and enforcement are not implemented. Compilation and runtime validation remain outstanding. Do not use this branch to protect real data.
+> **Development warning:** This is an experimental, unvalidated development build, not a production security product. Do not rely on it to protect real data or block processes, folders, or websites.
 
 ## Implemented foundations
 
-- Seven-crate Cargo workspace and egui desktop shell.
-- Platform-independent state, command and snapshot types.
-- Typed protection lifecycle and deterministic validated rule matching.
-- Normalized monitor event contracts and bounded event queue.
-- Argon2id PIN verifier creation/verification with bounded parameters.
-- AES-256-GCM authenticated encryption and single-use data-key primitives.
+- Seven-crate Rust workspace and native egui desktop shell.
+- Core state machine, typed commands, validated rules, normalized monitor events, and bounded event queue.
+- Rule-management UI for create, edit, enable/disable, and delete (currently in-memory only).
+- Argon2id PIN verifier and persisted failed-attempt/lockout policy.
+- AES-256-GCM authenticated configuration encryption with a fresh single-use data key per save.
 - Current-user Windows DPAPI key protection.
-- 128-bit recovery-code generation and Argon2id verifiers.
-- Versioned encrypted configuration store with fresh data keys, atomic replacement and validated backup.
-- Persisted three-failure/six-hour lockout policy.
-- Read-only importer for supported legacy DPAPI-wrapped/text configuration; plaintext fallback is rejected and TPM-wrapped legacy import is not supported.
-- Windows process enumeration using documented query APIs.
-- Supervised, opt-in process polling connected to the desktop UI and core event evaluation.
+- One-time 128-bit recovery-code generation and verifier storage primitives.
+- Versioned encrypted configuration store, atomic replacement, validated backup/restore, typed rule persistence, and no-clobber first-run creation.
+- Read-only legacy configuration importer for supported DPAPI-wrapped text configuration; plaintext fallback and TPM-wrapped legacy files are rejected/not supported.
+- Opt-in Windows process enumeration, Explorer folder observation, and foreground supported-browser hostname observation.
+- Windows PIN-session orchestration API for setup, unlock, persisted lockout, and rule snapshot saves (not yet connected to egui).
 
 ## Current application behavior
 
-On Windows, launch the application and use **Start process monitor** in the Process monitoring section. The first successful process snapshot is a baseline; later process starts/exits are sent through the normalized event queue and evaluated against configured core rules.
+On Windows, the egui app provides manual Start/Stop controls for process, Explorer, and foreground-browser observers. The Rule management panel currently changes only in-memory core state. Policy matches are informational; no process, folder, or browser enforcement is performed.
 
-The current UI has no rule editor, so matches normally remain zero. Process observation is read-only: the app does not suspend, terminate or block a process. The monitor can skip processes it cannot query without elevation.
+The security session and encrypted storage APIs exist, but the app does not yet show PIN setup/unlock screens or load/save rules from the store. The app currently does not create or resolve a secure per-user data directory.
 
-## Not implemented as user-facing workflows
+## Outstanding work
 
-- PIN setup/unlock/change/recovery UI.
-- GUI integration with encrypted storage and persisted lockout.
-- Migration preview/confirmation and complete migration orchestration.
-- Explorer folder monitoring.
-- Browser URL monitoring.
-- Rule-management UI and durable event history.
-- Process, folder or website enforcement.
-- TPM protection, installer, signing and release packaging.
+- Interactive first-run PIN setup, PIN confirmation, unlock, recovery-code display/acknowledgement, and lock UI.
+- Secure per-user data-directory resolution and Windows ACL verification.
+- Connect app startup, core state, and rule CRUD to the authenticated encrypted session.
+- Recovery-code unlock/consumption and PIN change.
+- Durable event history and notification delivery.
+- Explicit legacy migration preview and confirmation.
+- Windows runtime validation for process, Explorer, and browser monitoring.
+- Build, formatting, Clippy, unit/integration tests, and independent security review.
+- Any actual process, filesystem, or network enforcement (requires a separate security design and tests).
 
-## Build and run
+## Build and validation
 
-Install Rust stable (workspace minimum 1.85), `rustfmt`, `clippy`, Visual Studio Build Tools with Desktop development with C++, and a Windows SDK.
+Install Rust stable (edition 2024; workspace minimum Rust 1.85), rustfmt, Clippy, Visual Studio Build Tools with Desktop development with C++, and a Windows SDK.
 
 From the repository root in PowerShell:
 
@@ -52,26 +51,4 @@ cargo test --workspace
 cargo run -p peacelocker-app
 ```
 
-Build an optimized executable:
-
-```powershell
-cargo build --release -p peacelocker-app
-.\target\release\peacelocker-app.exe
-```
-
-See [README.md](README.md) for full setup, troubleshooting, usage details and the complete workspace map.
-
-## Design documents
-
-- [Architecture](docs/PEACELOCKER_V2_ARCHITECTURE.md)
-- [Security and privacy](docs/PEACELOCKER_V2_SECURITY.md)
-- [Roadmap](docs/PEACELOCKER_V2_ROADMAP.md)
-- [Phase 1 — security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
-- [Phase 2 — storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
-- [Phase 3 — core engine](docs/PHASE_3_CORE_ENGINE.md)
-- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)
-- [Implementation status](docs/IMPLEMENTATION_STATUS.md)
-
-## Validation
-
-The environment used for this implementation did not have `cargo`/ `rustc`, and GitHub Actions quota was exhausted. Source changes and tests have been reviewed statically, but no successful compile, test, formatting or Clippy run is claimed. Windows runtime validation and independent security review are still required.
+**Validation status:** No successful Cargo build/test/format/Clippy run is currently recorded. GitHub Actions checks are unavailable in this working session, and Windows runtime validation has not been completed. See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) and [README.md](README.md) for the current authoritative status.
