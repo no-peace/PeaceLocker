@@ -130,3 +130,50 @@ impl SecuritySession {
         Ok(())
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use peacelocker_core::{Rule, RuleAction, RuleTargetKind};
+
+    #[test]
+    fn setup_unlock_and_rule_persistence_round_trip() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("config.enc");
+        let (mut session, setup) =
+            SecuritySession::setup(&path, b"test passphrase", 1_800_000_000)
+                .expect("first-run setup succeeds");
+        assert_eq!(setup.recovery_codes.len(), RECOVERY_CODE_COUNT);
+
+        assert!(matches!(
+            SecuritySession::setup(&path, b"another passphrase", 1_800_000_001),
+            Err(SecuritySessionError::AlreadyConfigured)
+        ));
+
+        assert!(matches!(
+            SecuritySession::unlock(&path, b"incorrect", 1_800_000_001),
+            Ok(UnlockResult::Rejected { attempts_remaining: 2 })
+        ));
+
+        let rule = Rule::new(
+            1,
+            "Distracting site",
+            RuleTargetKind::BrowserHost,
+            "example.com",
+            RuleAction::Notify,
+        )
+        .expect("valid rule");
+        session.save_rules(vec![rule.clone()], 1_800_000_002)
+            .expect("rule snapshot persists");
+        drop(session);
+
+        let unlocked = SecuritySession::unlock(&path, b"test passphrase", 1_800_000_003)
+            .expect("unlock operation succeeds");
+        let UnlockResult::Authenticated(session) = unlocked else {
+            panic!("correct PIN must authenticate");
+        };
+        assert_eq!(session.config().rules, vec![rule]);
+        assert_eq!(session.config().lockout.failed_attempts(), 0);
+    }
+}
