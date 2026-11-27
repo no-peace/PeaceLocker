@@ -129,27 +129,94 @@ impl Default for PeaceLockerApp {
 
 impl PeaceLockerApp {
     fn save_rule(&mut self) {
-        let label = self.rule_label.trim();
-        let target = self.rule_target.trim();
         let id = match self.editing_rule_id {
             Some(id) => id,
-            None => match self.core.snapshot().rules.iter().map(|r| r.id).max() {
-                Some(max_id) => match max_id.checked_add(1) { Some(id) => id, None => { self.rule_error = Some("Rule ID space is exhausted.".into()); return; } },
+            None => match self.core.snapshot().rules.iter().map(|rule| rule.id).max() {
+                Some(max_id) => match max_id.checked_add(1) {
+                    Some(id) => id,
+                    None => { self.rule_error = Some("Rule ID space is exhausted.".into()); return; }
+                },
                 None => 1,
             },
         };
-        match peacelocker_core::Rule::new(id, label, self.rule_kind, target, self.rule_action) {
-            Ok(mut rule) => {
-                if let Some(existing) = self.editing_rule_id.and_then(|id| self.core.snapshot().rules.into_iter().find(|item| item.id == id)) {
-                    rule.enabled = existing.enabled;
-                }
-                let command = if self.editing_rule_id.is_some() { peacelocker_core::Command::ReplaceRule(rule) } else { peacelocker_core::Command::AddRule(rule) };
-                match self.core.execute(command) {
-                    Ok(_) => { self.rule_label.clear(); self.rule_target.clear(); self.editing_rule_id = None; self.rule_error = None; }
-                    Err(error) => self.rule_error = Some(error.to_string()),
-                }
+
+        let existing_rules = self.core.snapshot().rules;
+        let mut rule = match Rule::new(id, self.rule_label.trim(), self.rule_kind,
+            self.rule_target.trim(), self.rule_action) {
+            Ok(rule) => rule,
+            Err(error) => { self.rule_error = Some(error.to_string()); return; }
+        };
+        if let Some(existing) = existing_rules.iter().find(|item| item.id == id) {
+            rule.enabled = existing.enabled;
+        }
+
+        let mut next_rules = existing_rules.clone();
+        if let Some(existing) = next_rules.iter_mut().find(|item| item.id == id) {
+            *existing = rule.clone();
+        } else {
+            next_rules.push(rule.clone());
+        }
+
+        #[cfg(windows)]
+        if !self.persist_rules(next_rules) { return; }
+
+        let command = if self.editing_rule_id.is_some() {
+            Command::ReplaceRule(rule)
+        } else {
+            Command::AddRule(rule)
+        };
+        match self.core.execute(command) {
+            Ok(_) => {
+                self.rule_label.clear();
+                self.rule_target.clear();
+                self.editing_rule_id = None;
+                self.rule_error = None;
             }
             Err(error) => self.rule_error = Some(error.to_string()),
+        }
+    }
+
+    #[cfg(windows)]
+    fn persist_rules(&mut self, rules: Vec<Rule>) -> bool {
+        let Some(session) = self.security_session.as_mut() else {
+            self.rule_error = Some("Unlock PeaceLocker before changing persistent rules.".into());
+            return false;
+        };
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match session.save_rules(rules, now) {
+            Ok(()) => true,
+            Err(error) => {
+                self.rule_error = Some(format!("Could not save encrypted rules: {error}"));
+                false
+            }
+        }
+    }
+
+    fn set_rule_enabled(&mut self, id: u64, enabled: bool) {
+        let mut next_rules = self.core.snapshot().rules;
+        let Some(rule) = next_rules.iter_mut().find(|rule| rule.id == id) else { return; };
+        rule.enabled = enabled;
+        #[cfg(windows)]
+        if !self.persist_rules(next_rules) { return; }
+        if let Err(error) = self.core.execute(Command::SetRuleEnabled { id, enabled }) {
+            self.rule_error = Some(error.to_string());
+        }
+    }
+
+    fn delete_rule(&mut self, id: u64) {
+        let mut next_rules = self.core.snapshot().rules;
+        next_rules.retain(|rule| rule.id != id);
+        #[cfg(windows)]
+        if !self.persist_rules(next_rules) { return; }
+        if let Err(error) = self.core.execute(Command::RemoveRule(id)) {
+            self.rule_error = Some(error.to_string());
+            return;
+        }
+        if self.editing_rule_id == Some(id) {
+            self.editing_rule_id = None;
+            self.rule_label.clear();
+            self.rule_target.clear();
         }
     }
 
