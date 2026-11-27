@@ -10,7 +10,7 @@
 - Added an explicit lock action that drops the authenticated session and clears in-memory rules.
 - Displays the eight one-time recovery codes after setup, makes their text selectable, and requires acknowledgement before the in-app lock action is enabled.
 - Zeroizes PIN/passphrase input buffers and recovery-code strings when cleared or when the app exits.
-- Resolves the encrypted configuration path under the current user's `LOCALAPPDATA\PeaceLocker\\config.enc`.
+- Resolves the encrypted configuration path under the current user's `LOCALAPPDATA\PeaceLocker\config.enc`.
 - Loads persisted rules into the core engine after successful authentication.
 - Persists rule create, edit, enable/disable and delete operations through the authenticated encrypted session before applying the corresponding core command.
 - Keeps monitoring opt-in and read-only; no enforcement was introduced.
