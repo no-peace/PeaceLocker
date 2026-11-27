@@ -1,0 +1,186 @@
+//! PIN-gated access to the current-user DPAPI encrypted configuration.
+//!
+//! The PIN is an authentication gate; DPAPI remains responsible for protecting
+//! the data-encryption key. No default PIN or plaintext fallback exists.
+
+use peacelocker_security::{
+    AuthError, LockoutState, PinAuthOutcome, PinError, RecoveryCodeError,
+    authenticate_pin, generate_recovery_codes, hash_pin,
+};
+use peacelocker_storage::{ConfigDocument, EncryptedStore, StoreError};
+use thiserror::Error;
+
+use crate::DpapiKeyProtector;
+
+const RECOVERY_CODE_COUNT: usize = 8;
+
+#[derive(Debug, Error)]
+pub enum SecuritySessionError {
+    #[error("encrypted configuration storage failed")]
+    Store(#[from] StoreError),
+    #[error("PIN operation failed")]
+    Pin(#[from] PinError),
+    #[error("recovery-code operation failed")]
+    Recovery(#[from] RecoveryCodeError),
+    #[error("PIN authentication state is invalid")]
+    Authentication(#[from] AuthError),
+    #[error("security is already configured")]
+    AlreadyConfigured,
+    #[error("security has not been configured")]
+    NotConfigured,
+}
+
+/// Result of first-run setup. Recovery codes are plaintext and must be shown
+/// to the user once; only their Argon2id verifiers are persisted.
+pub struct SetupResult {
+    pub recovery_codes: Vec<String>,
+}
+
+/// Authenticated configuration session. Keep this object alive only while the
+/// app is unlocked. Dropping it releases the in-memory configuration.
+pub enum UnlockResult {
+    Authenticated(SecuritySession),
+    Rejected { attempts_remaining: u8 },
+    LockedOut { until_unix: u64 },
+}
+
+pub struct SecuritySession {
+    store: EncryptedStore<DpapiKeyProtector>,
+    config: ConfigDocument,
+}
+
+impl SecuritySession {
+    pub fn configuration_exists(path: impl Into<std::path::PathBuf>) -> bool {
+        EncryptedStore::new(path, DpapiKeyProtector).exists()
+    }
+
+    /// First-run setup. Refuses to overwrite any existing file, including a
+    /// corrupt one. The caller must securely display and let the user save
+    /// the returned one-time recovery codes.
+    pub fn setup(
+        path: impl Into<std::path::PathBuf>,
+        pin: &[u8],
+        now_unix: u64,
+    ) -> Result<(Self, SetupResult), SecuritySessionError> {
+        let store = EncryptedStore::new(path, DpapiKeyProtector);
+        if store.exists() {
+            return Err(SecuritySessionError::AlreadyConfigured);
+        }
+        let verifier = hash_pin(pin)?;
+        let recovery = generate_recovery_codes(RECOVERY_CODE_COUNT)?;
+        let mut config = ConfigDocument::new(
+            verifier,
+            recovery.verifier_set.verifiers_for_storage().to_vec(),
+            now_unix,
+        );
+        config.lockout = LockoutState::default();
+        store.create(&config)?;
+        Ok((
+            Self { store, config },
+            SetupResult { recovery_codes: recovery.codes },
+        ))
+    }
+
+    /// Authenticate against an existing encrypted configuration. Lockout
+    /// state is saved before returning both success and failure outcomes.
+    pub fn unlock(
+        path: impl Into<std::path::PathBuf>,
+        pin: &[u8],
+        now_unix: u64,
+    ) -> Result<UnlockResult, SecuritySessionError> {
+        let store = EncryptedStore::new(path, DpapiKeyProtector);
+        if !store.exists() {
+            return Err(SecuritySessionError::NotConfigured);
+        }
+        let mut config = store.load()?;
+        let outcome = authenticate_pin(
+            pin,
+            &config.pin_verifier,
+            &mut config.lockout,
+            now_unix,
+        )?;
+        config.revision = config.revision.saturating_add(1);
+        config.updated_at_unix = config.updated_at_unix.max(now_unix);
+        store.save(&config)?;
+        match outcome {
+            PinAuthOutcome::Authenticated => Ok(UnlockResult::Authenticated(Self { store, config })),
+            PinAuthOutcome::Rejected { attempts_remaining } => Ok(UnlockResult::Rejected { attempts_remaining }),
+            PinAuthOutcome::LockedOut { until_unix } => Ok(UnlockResult::LockedOut { until_unix }),
+        }
+    }
+
+    pub fn config(&self) -> &ConfigDocument {
+        &self.config
+    }
+
+    /// Persist a complete rule snapshot while preserving all unrelated
+    /// settings, credentials, recovery verifiers and lockout state.
+    pub fn save_rules(
+        &mut self,
+        rules: Vec<peacelocker_core::Rule>,
+        now_unix: u64,
+    ) -> Result<(), SecuritySessionError> {
+        let mut next = self.config.clone();
+        next.rules = rules;
+        next.revision = next.revision.checked_add(1)
+            .ok_or(StoreError::InvalidConfiguration)?;
+        next.updated_at_unix = next.updated_at_unix.max(now_unix);
+        self.store.save(&next)?;
+        self.config = next;
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use peacelocker_core::{Rule, RuleAction, RuleTargetKind};
+
+    #[test]
+    fn setup_unlock_and_rule_persistence_round_trip() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let path = directory.path().join("config.enc");
+        let (session, setup) =
+            SecuritySession::setup(&path, b"test passphrase", 1_800_000_000)
+                .expect("first-run setup succeeds");
+        drop(session);
+        assert_eq!(setup.recovery_codes.len(), RECOVERY_CODE_COUNT);
+
+        assert!(matches!(
+            SecuritySession::setup(&path, b"another passphrase", 1_800_000_001),
+            Err(SecuritySessionError::AlreadyConfigured)
+        ));
+
+        assert!(matches!(
+            SecuritySession::unlock(&path, b"incorrect", 1_800_000_001),
+            Ok(UnlockResult::Rejected { attempts_remaining: 2 })
+        ));
+
+        let unlocked = SecuritySession::unlock(&path, b"test passphrase", 1_800_000_002)
+            .expect("unlock operation succeeds");
+        let UnlockResult::Authenticated(mut session) = unlocked else {
+            panic!("correct PIN must authenticate");
+        };
+        assert_eq!(session.config().lockout.failed_attempts(), 0);
+
+        let rule = Rule::new(
+            1,
+            "Distracting site",
+            RuleTargetKind::BrowserHost,
+            "example.com",
+            RuleAction::Notify,
+        )
+        .expect("valid rule");
+        session.save_rules(vec![rule.clone()], 1_800_000_003)
+            .expect("rule snapshot persists");
+        drop(session);
+
+        let unlocked = SecuritySession::unlock(&path, b"test passphrase", 1_800_000_004)
+            .expect("second unlock operation succeeds");
+        let UnlockResult::Authenticated(session) = unlocked else {
+            panic!("correct PIN must authenticate after persisted rule change");
+        };
+        assert_eq!(session.config().rules, vec![rule]);
+    }
+}
