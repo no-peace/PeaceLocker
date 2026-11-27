@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::path::PathBuf;
 use eframe::egui;
 use peacelocker_core::{Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
+#[cfg(windows)]
 use zeroize::Zeroize;
 
 #[cfg(windows)]
@@ -48,7 +49,7 @@ impl AppSection {
 
 struct PeaceLockerApp {
     active_section: AppSection,
-    security_message: String,
+    #[cfg(windows)] security_message: String,
     #[cfg(windows)] security_path: Option<PathBuf>,
     #[cfg(windows)] security_configured: bool,
     #[cfg(windows)] security_session: Option<SecuritySession>,
@@ -104,7 +105,7 @@ impl Default for PeaceLockerApp {
         let security_configured = security_path.as_ref().is_some_and(|path| SecuritySession::configuration_exists(path.clone()));
         Self {
             active_section: AppSection::Overview,
-            security_message: "Security session is locked".into(),
+            #[cfg(windows)] security_message: "Security session is locked".into(),
             #[cfg(windows)] security_path,
             #[cfg(windows)] security_configured,
             #[cfg(windows)] security_session: None,
@@ -640,7 +641,7 @@ impl PeaceLockerApp {
                 for pair in self.recovery_codes.chunks(2) {
                     ui.horizontal(|ui| {
                         for code in pair {
-                            ui.monospace(code);
+                            ui.add(egui::Label::new(egui::RichText::new(code).monospace()).selectable(true));
                         }
                     });
                 }
@@ -870,6 +871,15 @@ impl PeaceLockerApp {
     }
 }
 
+#[cfg(windows)]
+impl Drop for PeaceLockerApp {
+    fn drop(&mut self) {
+        self.pin_input.zeroize();
+        self.pin_confirmation.zeroize();
+        for code in &mut self.recovery_codes { code.zeroize(); }
+    }
+}
+
 impl eframe::App for PeaceLockerApp {
     fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
         let mut visuals = egui::Visuals::dark();
@@ -927,7 +937,7 @@ impl eframe::App for PeaceLockerApp {
             ui.monospace(format!(" RULES ...... {}", self.core.snapshot().rules.len()));
             ui.monospace(format!(" MATCHES .... {}", self.matched_rule_count));
             ui.add_space(12.0);
-            if ui.button(egui::RichText::new("[ EXIT VIEW ]").monospace()).clicked() {
+            if ui.button(egui::RichText::new("[ HOME ]").monospace()).clicked() {
                 self.active_section = AppSection::Overview;
             }
         });
@@ -954,7 +964,7 @@ impl eframe::App for PeaceLockerApp {
             ui.horizontal(|ui| {
                 ui.monospace(" PEACELOCKER // TERMINAL INTERFACE");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.monospace(" [ESC] NAVIGATION VIA LEFT PANEL");
+                    ui.monospace(" [NAV] LEFT PANEL");
                 });
             });
         });
