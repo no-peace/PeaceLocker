@@ -107,6 +107,7 @@ impl Default for PeaceLockerApp {
         let security_path = default_config_path();
         #[cfg(windows)]
         let security_configured = security_path.as_ref().is_some_and(|path| SecuritySession::configuration_exists(path.clone()));
+        #[allow(unused_mut)]
         let mut app = Self {
             active_section: AppSection::Overview,
             #[cfg(windows)] security_message: "Security session is locked".into(),
