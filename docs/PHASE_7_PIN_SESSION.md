@@ -22,8 +22,7 @@ There is no default PIN, plaintext fallback, or automatic overwrite/reinitializa
 - Explicit Windows ACL/reparse-point verification for the LOCALAPPDATA configuration directory.
 - Single-instance coordination and automatic lock-on-inactivity policy.
 - Durable event history and broader configuration settings integration.
-- Recovery-code unlock and single-use recovery-code consumption flow.
-- PIN change flow and anti-rollback protection stronger than the existing persisted lockout state.
+- PIN change and anti-rollback protection stronger than the existing persisted lockout state.
 
 ## Validation
 
