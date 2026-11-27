@@ -6,7 +6,7 @@ Last updated: 2026-11-27
 
 **Phase 8 — Interactive ASCII desktop UI, PIN setup/unlock, encrypted rule persistence, and monitoring controls are connected; build and runtime validation remain pending.**
 
-Branch: `rewrite/rust-v2`
+Merged to `main` via PR #1; ongoing UI work is on `rewrite/rust-v2`.
 
 ## Phase 0 — workspace foundation
 
@@ -84,4 +84,4 @@ No workflow run or status check is recorded for the current branch head. The con
 
 ## Release warning
 
-The Rust rewrite is not production-ready. It has not passed compilation, runtime, platform, or independent security review. Do not use this branch to protect real data. The legacy C++ implementation and default branch remain unchanged.
+The Rust rewrite is not production-ready. It has not passed compilation, runtime, platform, or independent security review. Do not use it to protect real data. The legacy C++ source files remain in the repository, while `main` now includes the experimental Rust rewrite.
