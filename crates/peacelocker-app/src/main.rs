@@ -19,6 +19,7 @@ use peacelocker_windows::{SecuritySession, UnlockResult};
 fn default_config_path() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
+        .filter(|root| root.is_absolute())
         .map(|root| root.join("PeaceLocker").join("config.enc"))
 }
 
