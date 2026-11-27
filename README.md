@@ -365,7 +365,8 @@ Read these documents for design details and implementation decisions:
 - [Phase 1 — security foundation](docs/PHASE_1_SECURITY_FOUNDATION.md)
 - [Phase 2 — storage and migration](docs/PHASE_2_STORAGE_AND_MIGRATION.md)
 - [Phase 3 — core engine](docs/PHASE_3_CORE_ENGINE.md)
-- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)\n- [Phase 7 — PIN session foundation](docs/PHASE_7_PIN_SESSION.md)
+- [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)
+- [Phase 7 — PIN session foundation](docs/PHASE_7_PIN_SESSION.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Contributing
