@@ -18,12 +18,11 @@ There is no default PIN, plaintext fallback, or automatic overwrite/reinitializa
 
 ## Not yet implemented
 
-- egui first-run setup and unlock screens, including PIN confirmation and recovery-code presentation/acknowledgement.
-- A secure per-user application data-directory resolver and Windows ACL verification.
-- App startup integration, authenticated-session lifecycle and lock action.
-- Connecting editor CRUD to `SecuritySession::save_rules`.
-- Recovery-code unlock and single-use recovery-code consumption flow.
-- PIN change flow and anti-rollback protection stronger than the existing persisted lockout state.
+- Recovery-code unlock/consumption and PIN change workflows.
+- Explicit Windows ACL/reparse-point verification for the LOCALAPPDATA configuration directory.
+- Single-instance coordination and automatic lock-on-inactivity policy.
+- Durable event history and broader configuration settings integration.
+- PIN change and anti-rollback protection stronger than the existing persisted lockout state.
 
 ## Validation
 

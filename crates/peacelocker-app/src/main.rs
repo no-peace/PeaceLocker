@@ -1,13 +1,30 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(windows)]
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(windows)]
+use std::path::PathBuf;
 use eframe::egui;
-use peacelocker_core::{AppSnapshot, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, RuleTargetKind};
+use peacelocker_core::{Command, CoreEngine, EventQueue, Rule, RuleAction, RuleTargetKind};
+#[cfg(windows)]
+use peacelocker_core::{MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget};
+#[cfg(windows)]
+use zeroize::Zeroize;
 
 #[cfg(windows)]
 use std::{sync::mpsc::Receiver, time::Duration};
 #[cfg(windows)]
 use peacelocker_monitor::{PollingConfig, ProcessMonitorMessage, ProcessMonitorService};
+#[cfg(windows)]
+use peacelocker_windows::{SecuritySession, UnlockResult};
+
+#[cfg(windows)]
+fn default_config_path() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .filter(|root| root.is_absolute())
+        .map(|root| root.join("PeaceLocker").join("config.enc"))
+}
 
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt()
@@ -22,11 +39,30 @@ fn main() -> eframe::Result<()> {
     eframe::run_native("PeaceLocker", options, Box::new(|_cc| Ok(Box::new(PeaceLockerApp::default()))))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppSection { Overview, Protection, Monitoring, Rules, Activity, Security, Notifications, Settings }
+
+impl AppSection {
+    const ALL: [(Self, &'static str); 8] = [
+        (Self::Overview, "[01] OVERVIEW"), (Self::Protection, "[02] PROTECTION"),
+        (Self::Monitoring, "[03] MONITORING"), (Self::Rules, "[04] RULES"),
+        (Self::Activity, "[05] ACTIVITY"), (Self::Security, "[06] SECURITY"),
+        (Self::Notifications, "[07] NOTIFICATIONS"), (Self::Settings, "[08] SETTINGS"),
+    ];
+}
+
 struct PeaceLockerApp {
-    snapshot: AppSnapshot,
+    active_section: AppSection,
+    #[cfg(windows)] security_message: String,
+    #[cfg(windows)] security_path: Option<PathBuf>,
+    #[cfg(windows)] security_configured: bool,
+    #[cfg(windows)] security_session: Option<SecuritySession>,
+    #[cfg(windows)] pin_input: String,
+    #[cfg(windows)] pin_confirmation: String,
+    #[cfg(windows)] recovery_codes: Vec<String>,
     core: CoreEngine,
     event_queue: EventQueue,
-    next_event_id: u128,
+    #[cfg(windows)] next_event_id: u128,
     matched_rule_count: usize,
     last_event: String,
     monitor_error: Option<String>,
@@ -67,9 +103,23 @@ struct PeaceLockerApp {
 }
 impl Default for PeaceLockerApp {
     fn default() -> Self {
-        Self {
-            snapshot: AppSnapshot::default(), core: CoreEngine::new(), event_queue: EventQueue::new(1024),
-            next_event_id: 1, matched_rule_count: 0, last_event: "No process events observed".into(),
+        #[cfg(windows)]
+        let security_path = default_config_path();
+        #[cfg(windows)]
+        let security_configured = security_path.as_ref().is_some_and(|path| SecuritySession::configuration_exists(path.clone()));
+        #[allow(unused_mut)]
+        let mut app = Self {
+            active_section: AppSection::Overview,
+            #[cfg(windows)] security_message: "Security session is locked".into(),
+            #[cfg(windows)] security_path,
+            #[cfg(windows)] security_configured,
+            #[cfg(windows)] security_session: None,
+            #[cfg(windows)] pin_input: String::new(),
+            #[cfg(windows)] pin_confirmation: String::new(),
+            #[cfg(windows)] recovery_codes: Vec::new(),
+            core: CoreEngine::new(), event_queue: EventQueue::new(1024),
+            #[cfg(windows)] next_event_id: 1,
+            matched_rule_count: 0, last_event: "No process events observed".into(),
             monitor_error: None,
             #[cfg(windows)] process_monitor: None,
             #[cfg(windows)] process_receiver: None,
@@ -89,33 +139,117 @@ impl Default for PeaceLockerApp {
             rule_kind: RuleTargetKind::ProcessName,
             rule_action: peacelocker_core::RuleAction::Block,
             editing_rule_id: None, rule_error: None,
+        };
+        #[cfg(windows)]
+        if app.security_configured {
+            let mut locked_core = CoreEngine::new();
+            let _ = locked_core.execute(Command::CompleteSetup);
+            let _ = locked_core.execute(Command::Lock);
+            app.core = locked_core;
         }
+        app
     }
 }
 
 impl PeaceLockerApp {
     fn save_rule(&mut self) {
-        let label = self.rule_label.trim();
-        let target = self.rule_target.trim();
         let id = match self.editing_rule_id {
             Some(id) => id,
-            None => match self.core.snapshot().rules.iter().map(|r| r.id).max() {
-                Some(max_id) => match max_id.checked_add(1) { Some(id) => id, None => { self.rule_error = Some("Rule ID space is exhausted.".into()); return; } },
+            None => match self.core.snapshot().rules.iter().map(|rule| rule.id).max() {
+                Some(max_id) => match max_id.checked_add(1) {
+                    Some(id) => id,
+                    None => { self.rule_error = Some("Rule ID space is exhausted.".into()); return; }
+                },
                 None => 1,
             },
         };
-        match peacelocker_core::Rule::new(id, label, self.rule_kind, target, self.rule_action) {
-            Ok(mut rule) => {
-                if let Some(existing) = self.editing_rule_id.and_then(|id| self.core.snapshot().rules.into_iter().find(|item| item.id == id)) {
-                    rule.enabled = existing.enabled;
-                }
-                let command = if self.editing_rule_id.is_some() { peacelocker_core::Command::ReplaceRule(rule) } else { peacelocker_core::Command::AddRule(rule) };
-                match self.core.execute(command) {
-                    Ok(_) => { self.rule_label.clear(); self.rule_target.clear(); self.editing_rule_id = None; self.rule_error = None; }
-                    Err(error) => self.rule_error = Some(error.to_string()),
-                }
+
+        let existing_rules = self.core.snapshot().rules;
+        if self.editing_rule_id.is_some() && !existing_rules.iter().any(|item| item.id == id) {
+            self.rule_error = Some("The rule being edited no longer exists.".into());
+            return;
+        }
+        let mut rule = match Rule::new(id, self.rule_label.trim(), self.rule_kind,
+            self.rule_target.trim(), self.rule_action) {
+            Ok(rule) => rule,
+            Err(error) => { self.rule_error = Some(error.to_string()); return; }
+        };
+        if let Some(existing) = existing_rules.iter().find(|item| item.id == id) {
+            rule.enabled = existing.enabled;
+        }
+
+        #[cfg(windows)]
+        {
+            let mut next_rules = existing_rules.clone();
+            if let Some(existing) = next_rules.iter_mut().find(|item| item.id == id) {
+                *existing = rule.clone();
+            } else {
+                next_rules.push(rule.clone());
+            }
+            if !self.persist_rules(next_rules) { return; }
+        }
+
+        let command = if self.editing_rule_id.is_some() {
+            Command::ReplaceRule(rule)
+        } else {
+            Command::AddRule(rule)
+        };
+        match self.core.execute(command) {
+            Ok(_) => {
+                self.rule_label.clear();
+                self.rule_target.clear();
+                self.editing_rule_id = None;
+                self.rule_error = None;
             }
             Err(error) => self.rule_error = Some(error.to_string()),
+        }
+    }
+
+    #[cfg(windows)]
+    fn persist_rules(&mut self, rules: Vec<Rule>) -> bool {
+        let Some(session) = self.security_session.as_mut() else {
+            self.rule_error = Some("Unlock PeaceLocker before changing persistent rules.".into());
+            return false;
+        };
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match session.save_rules(rules, now) {
+            Ok(()) => true,
+            Err(error) => {
+                self.rule_error = Some(format!("Could not save encrypted rules: {error}"));
+                false
+            }
+        }
+    }
+
+    fn set_rule_enabled(&mut self, id: u64, enabled: bool) {
+        #[cfg(windows)]
+        {
+            let mut next_rules = self.core.snapshot().rules;
+            let Some(rule) = next_rules.iter_mut().find(|rule| rule.id == id) else { return; };
+            rule.enabled = enabled;
+            if !self.persist_rules(next_rules) { return; }
+        }
+        if let Err(error) = self.core.execute(Command::SetRuleEnabled { id, enabled }) {
+            self.rule_error = Some(error.to_string());
+        }
+    }
+
+    fn delete_rule(&mut self, id: u64) {
+        #[cfg(windows)]
+        {
+            let mut next_rules = self.core.snapshot().rules;
+            next_rules.retain(|rule| rule.id != id);
+            if !self.persist_rules(next_rules) { return; }
+        }
+        if let Err(error) = self.core.execute(Command::RemoveRule(id)) {
+            self.rule_error = Some(error.to_string());
+            return;
+        }
+        if self.editing_rule_id == Some(id) {
+            self.editing_rule_id = None;
+            self.rule_label.clear();
+            self.rule_target.clear();
         }
     }
 
@@ -128,6 +262,100 @@ impl PeaceLockerApp {
         self.rule_error = None;
     }
 
+    #[cfg(windows)]
+    fn activate_security_session(&mut self, session: SecuritySession) {
+        let stored_rules = session.config().rules.clone();
+        let mut core = CoreEngine::new();
+        let _ = core.execute(Command::CompleteSetup);
+        for rule in stored_rules {
+            if let Err(error) = core.execute(Command::AddRule(rule)) {
+                self.rule_error = Some(format!("A stored rule could not be loaded: {error}"));
+            }
+        }
+        self.core = core;
+        self.security_session = Some(session);
+        self.security_configured = true;
+        self.security_message = "UNLOCKED // encrypted configuration loaded".into();
+    }
+
+    #[cfg(windows)]
+    fn setup_security(&mut self) {
+        let Some(path) = self.security_path.clone() else {
+            self.security_message = "LOCALAPPDATA is unavailable; cannot resolve a safe configuration location.".into();
+            return;
+        };
+        let pin = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_input));
+        let confirmation = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_confirmation));
+        if pin.as_bytes().len() < 6 || pin.as_bytes().len() > 128 {
+            self.security_message = "Use a passphrase/PIN between 6 and 128 bytes.".into();
+            return;
+        }
+        if pin.as_str() != confirmation.as_str() {
+            self.security_message = "PIN confirmation does not match.".into();
+            return;
+        }
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match SecuritySession::setup(path, pin.as_bytes(), now) {
+            Ok((session, setup)) => {
+                self.recovery_codes = setup.recovery_codes;
+                self.activate_security_session(session);
+                self.security_message = "SETUP COMPLETE // save the one-time recovery codes below".into();
+            }
+            Err(error) => self.security_message = format!("SETUP FAILED // {error}"),
+        }
+    }
+
+    #[cfg(windows)]
+    fn unlock_security(&mut self) {
+        let Some(path) = self.security_path.clone() else {
+            self.security_message = "LOCALAPPDATA is unavailable; cannot resolve the configuration location.".into();
+            return;
+        };
+        let pin = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_input));
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match SecuritySession::unlock(path, pin.as_bytes(), now) {
+            Ok(UnlockResult::Authenticated(session)) => {
+                self.activate_security_session(session);
+            }
+            Ok(UnlockResult::Rejected { attempts_remaining }) => {
+                self.security_message = format!("ACCESS DENIED // {attempts_remaining} attempts remaining");
+            }
+            Ok(UnlockResult::LockedOut { until_unix }) => {
+                self.security_message = format!("LOCKED OUT // retry after Unix time {until_unix}");
+            }
+            Err(error) => {
+                self.security_message = format!("UNLOCK FAILED // {error}");
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn lock_security(&mut self) {
+        self.security_session = None;
+        let mut locked_core = CoreEngine::new();
+        let _ = locked_core.execute(Command::CompleteSetup);
+        let _ = locked_core.execute(Command::Lock);
+        self.core = locked_core;
+        self.rule_label.clear();
+        self.rule_target.clear();
+        self.editing_rule_id = None;
+        for code in &mut self.recovery_codes { code.zeroize(); }
+        self.recovery_codes.clear();
+        self.pin_input.zeroize();
+        self.pin_confirmation.zeroize();
+        self.security_message = "LOCKED // in-memory rules cleared".into();
+    }
+
+    #[cfg(windows)]
+    fn acknowledge_recovery_codes(&mut self) {
+        for code in &mut self.recovery_codes { code.zeroize(); }
+        self.recovery_codes.clear();
+        self.security_message = "RECOVERY CODES ACKNOWLEDGED // keep them offline".into();
+    }
+
+    #[cfg(windows)]
     fn handle_process_change(&mut self, change: peacelocker_monitor::ProcessChange) {
         let kind = match change.kind {
             peacelocker_monitor::ProcessChangeKind::Started => MonitorEventKind::ProcessStarted,
@@ -348,8 +576,341 @@ impl PeaceLockerApp {
     }
 }
 
+impl PeaceLockerApp {
+    fn show_overview(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "SYSTEM OVERVIEW", |ui| {
+            ui.monospace(" [ STATUS ]");
+            ui.monospace(format!(" application ........ ONLINE"));
+            #[cfg(windows)]
+            ui.monospace(format!(" security ........... {}", if self.security_session.is_some() { "UNLOCKED" } else if self.security_configured { "LOCKED" } else { "NOT CONFIGURED" }));
+            #[cfg(not(windows))]
+            ui.monospace(" security ........... WINDOWS ONLY");
+            ui.monospace(format!(" policy rules ....... {}", self.core.snapshot().rules.len()));
+            ui.monospace(format!(" policy matches .... {}", self.matched_rule_count));
+            ui.monospace(format!(" event queue drops .. {}", self.event_queue.dropped_count()));
+            ui.separator();
+            ui.monospace(" [ MONITORS ]");
+            #[cfg(windows)]
+            {
+                ui.monospace(format!(" process ............ {}", self.process_monitor_status));
+                ui.monospace(format!(" explorer ........... {}", self.explorer_status));
+                ui.monospace(format!(" browser ............ {}", self.browser_status));
+            }
+            #[cfg(not(windows))]
+            ui.monospace(" Windows monitoring is unavailable on this platform.");
+            ui.separator();
+            ui.monospace(format!(" last event: {}", self.last_event));
+            ui.monospace(" NOTE: observations and rule matches are informational only.");
+        });
+        ui.add_space(8.0);
+        terminal_panel(ui, "QUICK ACTIONS", |ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(egui::RichText::new("[ OPEN RULES ]").monospace()).clicked() {
+                    self.active_section = AppSection::Rules;
+                }
+                if ui.button(egui::RichText::new("[ SECURITY ]").monospace()).clicked() {
+                    self.active_section = AppSection::Protection;
+                }
+                if ui.button(egui::RichText::new("[ MONITORS ]").monospace()).clicked() {
+                    self.active_section = AppSection::Monitoring;
+                }
+            });
+        });
+    }
+
+    fn show_protection(&mut self, ui: &mut egui::Ui) {
+        #[cfg(windows)]
+        terminal_panel(ui, "PIN AUTHENTICATION", |ui| {
+            if self.security_session.is_some() {
+                ui.monospace(" [ SESSION: UNLOCKED ]");
+                ui.monospace(" Your encrypted configuration is open in this process.");
+                if self.recovery_codes.is_empty()
+                    && ui.button(egui::RichText::new("[ LOCK PEACELOCKER ]").monospace()).clicked() {
+                    self.lock_security();
+                }
+                if !self.recovery_codes.is_empty() {
+                    ui.monospace(" Save and acknowledge the recovery codes before locking.");
+                }
+            } else if self.security_configured {
+                ui.monospace(" [ SESSION: LOCKED ]");
+                ui.label("Enter your PIN or passphrase to unlock the encrypted configuration.");
+                ui.add(egui::TextEdit::singleline(&mut self.pin_input).password(true)
+                    .hint_text("PIN / passphrase").desired_width(280.0));
+                if ui.button(egui::RichText::new("[ UNLOCK ]").monospace()).clicked() {
+                    self.unlock_security();
+                }
+            } else {
+                ui.monospace(" [ FIRST-RUN SETUP ]");
+                ui.label("Create a passphrase of 6–128 bytes. A longer passphrase is recommended.");
+                ui.add(egui::TextEdit::singleline(&mut self.pin_input).password(true)
+                    .hint_text("New PIN / passphrase").desired_width(280.0));
+                ui.add(egui::TextEdit::singleline(&mut self.pin_confirmation).password(true)
+                    .hint_text("Confirm PIN / passphrase").desired_width(280.0));
+                if ui.button(egui::RichText::new("[ CREATE SECURE STORE ]").monospace()).clicked() {
+                    self.setup_security();
+                }
+            }
+            ui.separator();
+            ui.monospace(format!(" STATUS: {}", self.security_message));
+            if !self.recovery_codes.is_empty() {
+                ui.separator();
+                ui.colored_label(egui::Color32::from_rgb(255, 210, 100),
+                    "IMPORTANT: These recovery codes are shown once. Save them somewhere offline.");
+                for pair in self.recovery_codes.chunks(2) {
+                    ui.horizontal(|ui| {
+                        for code in pair {
+                            ui.add(egui::Label::new(egui::RichText::new(code).monospace()).selectable(true));
+                        }
+                    });
+                }
+                if ui.button(egui::RichText::new("[ I SAVED MY RECOVERY CODES ]").monospace()).clicked() {
+                    self.acknowledge_recovery_codes();
+                }
+            }
+        });
+        #[cfg(not(windows))]
+        terminal_panel(ui, "PIN AUTHENTICATION", |ui| {
+            ui.monospace(" PIN setup and DPAPI storage are available only on Windows.");
+        });
+    }
+
+    fn show_monitoring(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "PROCESS MONITOR", |ui| {
+            #[cfg(windows)]
+            {
+                ui.monospace(format!(" STATE: {}", self.process_monitor_status));
+                ui.monospace(format!(" INACCESSIBLE PROCESSES: {}", self.inaccessible_count));
+                ui.horizontal(|ui| {
+                    if self.process_monitor.is_none()
+                        && ui.button(egui::RichText::new("[ START ]").monospace()).clicked() {
+                        self.start_process_monitor();
+                    }
+                    if self.process_monitor.is_some()
+                        && ui.button(egui::RichText::new("[ STOP ]").monospace()).clicked() {
+                        self.stop_process_monitor();
+                    }
+                });
+            }
+            #[cfg(not(windows))]
+            ui.monospace(" Windows process enumeration is unavailable.");
+        });
+        ui.add_space(8.0);
+        terminal_panel(ui, "EXPLORER MONITOR", |ui| {
+            #[cfg(windows)]
+            {
+                ui.monospace(format!(" STATE: {}", self.explorer_status));
+                ui.monospace(format!(" TRACKED WINDOWS: {}", self.explorer_window_count));
+                ui.horizontal(|ui| {
+                    if self.explorer_monitor.is_none()
+                        && ui.button(egui::RichText::new("[ START ]").monospace()).clicked() {
+                        self.start_explorer_monitor();
+                    }
+                    if self.explorer_monitor.is_some()
+                        && ui.button(egui::RichText::new("[ STOP ]").monospace()).clicked() {
+                        self.stop_explorer_monitor();
+                    }
+                });
+            }
+            #[cfg(not(windows))]
+            ui.monospace(" Explorer COM monitoring is unavailable.");
+        });
+        ui.add_space(8.0);
+        terminal_panel(ui, "BROWSER HOST MONITOR", |ui| {
+            #[cfg(windows)]
+            {
+                ui.monospace(format!(" STATE: {}", self.browser_status));
+                ui.monospace(format!(" LAST HOST: {}", self.browser_last_host));
+                ui.horizontal(|ui| {
+                    if self.browser_monitor.is_none()
+                        && ui.button(egui::RichText::new("[ START ]").monospace()).clicked() {
+                        self.start_browser_monitor();
+                    }
+                    if self.browser_monitor.is_some()
+                        && ui.button(egui::RichText::new("[ STOP ]").monospace()).clicked() {
+                        self.stop_browser_monitor();
+                    }
+                });
+            }
+            #[cfg(not(windows))]
+            ui.monospace(" Browser UI Automation is unavailable.");
+        });
+        if let Some(error) = &self.monitor_error {
+            ui.colored_label(egui::Color32::LIGHT_RED, format!("MONITOR ERROR: {error}"));
+        }
+        ui.add_space(8.0);
+        ui.monospace(" All observers are opt-in and read-only. No blocking or enforcement occurs.");
+    }
+
+    fn show_rules(&mut self, ui: &mut egui::Ui) {
+        #[cfg(windows)]
+        let can_edit = self.security_session.is_some();
+        #[cfg(not(windows))]
+        let can_edit = true;
+
+        terminal_panel(ui, "RULE EDITOR", |ui| {
+            #[cfg(windows)]
+            if !can_edit {
+                ui.colored_label(egui::Color32::from_rgb(255, 190, 90),
+                    "LOCKED: unlock PeaceLocker in the Protection panel before editing persistent rules.");
+            }
+            ui.add_enabled_ui(can_edit, |ui| {
+                egui::Grid::new("ascii_rule_editor").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.monospace("NAME"); ui.add(egui::TextEdit::singleline(&mut self.rule_label)
+                        .hint_text("Rule label").desired_width(300.0)); ui.end_row();
+                    ui.monospace("TYPE");
+                    egui::ComboBox::from_id_salt("ascii_rule_kind")
+                        .selected_text(match self.rule_kind {
+                            RuleTargetKind::ProcessName => "Process name",
+                            RuleTargetKind::ExecutablePath => "Executable path",
+                            RuleTargetKind::FolderPath => "Folder path",
+                            RuleTargetKind::BrowserHost => "Browser hostname",
+                        }).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ProcessName, "Process name");
+                            ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ExecutablePath, "Executable path");
+                            ui.selectable_value(&mut self.rule_kind, RuleTargetKind::FolderPath, "Folder path");
+                            ui.selectable_value(&mut self.rule_kind, RuleTargetKind::BrowserHost, "Browser hostname");
+                        });
+                    ui.end_row();
+                    ui.monospace("TARGET");
+                    ui.add(egui::TextEdit::singleline(&mut self.rule_target)
+                        .hint_text(match self.rule_kind {
+                            RuleTargetKind::ProcessName => "game.exe",
+                            RuleTargetKind::ExecutablePath => r"C:\Games\game.exe",
+                            RuleTargetKind::FolderPath => r"C:\Private",
+                            RuleTargetKind::BrowserHost => "example.com",
+                        }).desired_width(300.0));
+                    ui.end_row();
+                    ui.monospace("ACTION");
+                    egui::ComboBox::from_id_salt("ascii_rule_action")
+                        .selected_text(match self.rule_action {
+                            RuleAction::Block => "Block (not enforced)",
+                            RuleAction::Notify => "Notify",
+                        }).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.rule_action, RuleAction::Block, "Block (not enforced)");
+                            ui.selectable_value(&mut self.rule_action, RuleAction::Notify, "Notify");
+                        });
+                    ui.end_row();
+                });
+                ui.horizontal(|ui| {
+                    if ui.button(egui::RichText::new(if self.editing_rule_id.is_some() {
+                        "[ SAVE CHANGES ]"
+                    } else {
+                        "[ ADD RULE ]"
+                    }).monospace()).clicked() {
+                        self.save_rule();
+                    }
+                    if self.editing_rule_id.is_some()
+                        && ui.button(egui::RichText::new("[ CANCEL ]").monospace()).clicked() {
+                        self.editing_rule_id = None;
+                        self.rule_label.clear();
+                        self.rule_target.clear();
+                        self.rule_error = None;
+                    }
+                });
+            });
+            if let Some(error) = &self.rule_error {
+                ui.colored_label(egui::Color32::LIGHT_RED, format!("ERROR: {error}"));
+            }
+        });
+        ui.add_space(8.0);
+        terminal_panel(ui, "SAVED RULES", |ui| {
+            let rules = self.core.snapshot().rules;
+            if rules.is_empty() {
+                ui.monospace(" [ EMPTY ] no rules configured");
+            }
+            for rule in rules {
+                ui.horizontal_wrapped(|ui| {
+                    let mut enabled = rule.enabled;
+                    let response = ui.add_enabled(can_edit,
+                        egui::Checkbox::new(&mut enabled, egui::RichText::new(if rule.enabled { "[ON]" } else { "[OFF]" }).monospace()));
+                    if response.changed() {
+                        self.set_rule_enabled(rule.id, enabled);
+                    }
+                    ui.monospace(format!("{} :: {:?} :: {} :: {:?}", rule.label, rule.target_kind, rule.target, rule.action));
+                    if ui.add_enabled(can_edit, egui::Button::new(egui::RichText::new("[EDIT]").monospace())).clicked() {
+                        self.begin_edit_rule(&rule);
+                    }
+                    if ui.add_enabled(can_edit, egui::Button::new(egui::RichText::new("[DEL]").monospace())).clicked() {
+                        self.delete_rule(rule.id);
+                    }
+                });
+            }
+        });
+        ui.add_space(6.0);
+        ui.monospace(" RULE ACTIONS ARE POLICY LABELS ONLY. NO PROCESS, FOLDER OR WEBSITE IS BLOCKED.");
+    }
+
+    fn show_activity(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "LIVE ACTIVITY", |ui| {
+            ui.monospace(format!(" LAST EVENT: {}", self.last_event));
+            ui.monospace(format!(" POLICY MATCHES: {}", self.matched_rule_count));
+            ui.monospace(format!(" QUEUE DEPTH: {}", self.event_queue.len()));
+            ui.monospace(format!(" DROPPED EVENTS: {}", self.event_queue.dropped_count()));
+            ui.separator();
+            ui.monospace(" This is live in-memory telemetry only.");
+            ui.monospace(" Durable event history has not been implemented.");
+        });
+    }
+
+    fn show_security(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "SECURITY MODEL", |ui| {
+            ui.monospace(" ENCRYPTION : AES-256-GCM");
+            ui.monospace(" KEY WRAP   : Windows DPAPI / current user");
+            ui.monospace(" PIN HASH   : Argon2id");
+            ui.monospace(" LOCKOUT    : 3 failed attempts / 6 hours");
+            ui.monospace(" RECOVERY   : 8 one-time 128-bit codes");
+            ui.separator();
+            ui.monospace(" The PIN gates the app session; it is not used to derive the encryption key.");
+            ui.monospace(" DPAPI protects the data key for the current Windows user.");
+            ui.monospace(" Local administrators and malware in the same user session are outside the protection guarantee.");
+            if ui.button(egui::RichText::new("[ OPEN PIN / RECOVERY ]").monospace()).clicked() {
+                self.active_section = AppSection::Protection;
+            }
+        });
+    }
+
+    fn show_notifications(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "NOTIFICATION OUTPUT", |ui| {
+            ui.monospace(" [ DISABLED ] notification delivery is not implemented yet.");
+            ui.monospace(" No webhook requests or background network activity are performed.");
+        });
+    }
+
+    fn show_settings(&mut self, ui: &mut egui::Ui) {
+        terminal_panel(ui, "APPLICATION SETTINGS", |ui| {
+            ui.monospace(" INTERFACE ........ ASCII / MONOSPACE TERMINAL");
+            ui.monospace(" MONITORING ....... MANUAL OPT-IN");
+            ui.monospace(" ACTIVITY HISTORY . IN-MEMORY ONLY");
+            ui.monospace(" AUTO START ....... NOT CONNECTED");
+            ui.monospace(" SHELL INTEGRATION  NOT CONNECTED");
+            ui.separator();
+            ui.monospace(" Settings are not exposed as editable controls until persistence is wired.");
+        });
+    }
+}
+
+#[cfg(windows)]
+impl Drop for PeaceLockerApp {
+    fn drop(&mut self) {
+        self.pin_input.zeroize();
+        self.pin_confirmation.zeroize();
+        for code in &mut self.recovery_codes { code.zeroize(); }
+    }
+}
+
 impl eframe::App for PeaceLockerApp {
     fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+        let mut visuals = egui::Visuals::dark();
+        visuals.panel_fill = egui::Color32::from_rgb(7, 14, 10);
+        visuals.window_fill = egui::Color32::from_rgb(9, 18, 13);
+        visuals.extreme_bg_color = egui::Color32::from_rgb(3, 8, 5);
+        visuals.override_text_color = Some(egui::Color32::from_rgb(150, 235, 170));
+        visuals.selection.bg_fill = egui::Color32::from_rgb(24, 76, 43);
+        visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(13, 32, 20);
+        visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(23, 65, 37);
+        visuals.widgets.active.bg_fill = egui::Color32::from_rgb(35, 92, 52);
+        context.set_visuals(visuals);
+
         #[cfg(windows)]
         self.drain_process_messages();
         #[cfg(windows)]
@@ -357,140 +918,88 @@ impl eframe::App for PeaceLockerApp {
         #[cfg(windows)]
         self.drain_browser_messages();
 
-        egui::TopBottomPanel::top("top_bar").show(context, |ui| {
+        egui::TopBottomPanel::top("ascii_header").show(context, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("PeaceLocker");
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new("RUST V2 · PHASE 5").small().color(egui::Color32::from_rgb(117, 190, 140)));
+                ui.vertical(|ui| {
+                    ui.monospace(r"  ____  _____    _    ____ _____ _     ___   ____ _  _______ ____  ");
+                    ui.monospace(r" |  _ \| ____|  / \  / ___| ____| |   / _ \ / ___| |/ / ____|  _ \ ");
+                    ui.monospace(r" | |_) |  _|   / _ \| |   |  _| | |  | | | | |   | ' /|  _| | |_) |");
+                    ui.monospace(r" |  __/| |___ / ___ \ |___| |___| |__| |_| | |___| . \| |___|  _ < ");
+                    ui.monospace(r" |_|   |_____/_/   \_\____|_____|_____\___/ \____|_|\_\_____|_| \_\");
+                });
+                ui.separator();
+                ui.vertical(|ui| {
+                    ui.monospace(" [ SYSTEM CONSOLE ]");
+                    ui.monospace(" BUILD: RUST V2");
+                    #[cfg(windows)]
+                    ui.monospace(format!(" AUTH: {}", if self.security_session.is_some() { "UNLOCKED" } else { "LOCKED" }));
+                    #[cfg(not(windows))]
+                    ui.monospace(" AUTH: WINDOWS ONLY");
                 });
             });
         });
-        egui::SidePanel::left("navigation").resizable(false).default_width(190.0).show(context, |ui| {
-            ui.add_space(12.0); ui.heading("Workspace"); ui.separator();
-            for section in ["Overview", "Protection", "Monitoring", "Activity", "Security", "Notifications", "Settings"] {
-                ui.add_sized([ui.available_width(), 34.0], egui::Button::new(section));
+
+        egui::SidePanel::left("ascii_navigation").resizable(false).default_width(190.0).show(context, |ui| {
+            ui.add_space(8.0);
+            ui.monospace("+--[ NAVIGATION ]--+");
+            ui.separator();
+            for (section, label) in AppSection::ALL {
+                if ui.selectable_label(self.active_section == section,
+                    egui::RichText::new(label).monospace()).clicked() {
+                    self.active_section = section;
+                }
+            }
+            ui.separator();
+            ui.monospace("+--[ SYSTEM ]--+");
+            ui.monospace(" APP ........ ONLINE");
+            ui.monospace(format!(" RULES ...... {}", self.core.snapshot().rules.len()));
+            ui.monospace(format!(" MATCHES .... {}", self.matched_rule_count));
+            ui.add_space(12.0);
+            if ui.button(egui::RichText::new("[ HOME ]").monospace()).clicked() {
+                self.active_section = AppSection::Overview;
             }
         });
+
         egui::CentralPanel::default().show(context, |ui| {
-            ui.add_space(12.0); ui.heading("Overview"); ui.label("The Rust rewrite is being initialized."); ui.add_space(18.0);
-            ui.horizontal_wrapped(|ui| {
-                status_card(ui, "Application", "Running", "Desktop shell initialized");
-                status_card(ui, "Protection", "Not configured", "PIN and encrypted storage are not connected to this UI");
-                #[cfg(windows)]
-                status_card(ui, "Process monitor", &self.process_monitor_status, "Read-only process metadata polling");
-                #[cfg(windows)]
-                status_card(ui, "Explorer monitor", &self.explorer_status, "Read-only folder observation");
-                #[cfg(windows)]
-                status_card(ui, "Browser monitor", &self.browser_status, "Foreground hostname only");
-                #[cfg(not(windows))]
-                {
-                    status_card(ui, "Explorer monitor", "Unavailable", "Windows-only observation");
-                    status_card(ui, "Browser monitor", "Unavailable", "Windows-only observation");
-                    status_card(ui, "Monitoring", "Unavailable", "Windows process monitoring is Windows-only");
+            ui.add_space(8.0);
+            ui.monospace(format!("ROOT / PEACELOCKER / {:?}", self.active_section));
+            ui.separator();
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                match self.active_section {
+                    AppSection::Overview => self.show_overview(ui),
+                    AppSection::Protection => self.show_protection(ui),
+                    AppSection::Monitoring => self.show_monitoring(ui),
+                    AppSection::Rules => self.show_rules(ui),
+                    AppSection::Activity => self.show_activity(ui),
+                    AppSection::Security => self.show_security(ui),
+                    AppSection::Notifications => self.show_notifications(ui),
+                    AppSection::Settings => self.show_settings(ui),
                 }
-            });
-            ui.add_space(20.0);
-            ui.group(|ui| {
-                ui.heading("Monitoring controls");
-                #[cfg(windows)]
-                {
-                    ui.horizontal(|ui| {
-                        if self.process_monitor.is_none() && ui.button("Start process monitor").clicked() { self.start_process_monitor(); }
-                        if self.process_monitor.is_some() && ui.button("Stop monitor").clicked() { self.stop_process_monitor(); }
-                    });
-                    ui.label(format!("Processes inaccessible to query: {}", self.inaccessible_count));
-                    ui.separator();
-                    ui.label(format!("Explorer monitor: {}", self.explorer_status));
-                    ui.label(format!("Explorer filesystem windows: {}", self.explorer_window_count));
-                    ui.separator();
-                    ui.label(format!("Browser monitor: {}", self.browser_status));
-                    ui.label(format!("Last browser host: {}", self.browser_last_host));
-                    ui.horizontal(|ui| {
-                        if self.browser_monitor.is_none() && ui.button("Start browser monitor").clicked() { self.start_browser_monitor(); }
-                        if self.browser_monitor.is_some() && ui.button("Stop browser monitor").clicked() { self.stop_browser_monitor(); }
-                    });
-                    ui.horizontal(|ui| {
-                        if self.explorer_monitor.is_none() && ui.button("Start Explorer monitor").clicked() { self.start_explorer_monitor(); }
-                        if self.explorer_monitor.is_some() && ui.button("Stop Explorer monitor").clicked() { self.stop_explorer_monitor(); }
-                    });
-                }
-                ui.label(format!("Last event: {}", self.last_event));
-                ui.label(format!("Policy matches: {}", self.matched_rule_count));
-                if let Some(error) = &self.monitor_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
-                ui.label("Monitoring observes process metadata and Explorer folder locations. Policy matches are decisions only; nothing is suspended, terminated, or blocked.");
-            });
-            ui.add_space(16.0);
-            ui.group(|ui| {
-                ui.heading("Rule management");
-                ui.label("Create and maintain policy rules. Matches are currently informational only; no blocking or enforcement is performed.");
-                egui::Grid::new("rule_editor_grid").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                    ui.label("Rule name"); ui.text_edit_singleline(&mut self.rule_label); ui.end_row();
-                    ui.label("Target type");
-                    egui::ComboBox::from_id_salt("rule_target_kind").selected_text(match self.rule_kind {
-                        RuleTargetKind::ProcessName => "Process name", RuleTargetKind::ExecutablePath => "Executable path",
-                        RuleTargetKind::FolderPath => "Folder path", RuleTargetKind::BrowserHost => "Browser hostname",
-                    }).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ProcessName, "Process name");
-                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::ExecutablePath, "Executable path");
-                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::FolderPath, "Folder path");
-                        ui.selectable_value(&mut self.rule_kind, RuleTargetKind::BrowserHost, "Browser hostname");
-                    }); ui.end_row();
-                    ui.label("Target");
-                    ui.add(egui::TextEdit::singleline(&mut self.rule_target).hint_text(match self.rule_kind {
-                        RuleTargetKind::ProcessName => "game.exe", RuleTargetKind::ExecutablePath => r"C:\\Games\\game.exe",
-                        RuleTargetKind::FolderPath => r"C:\\Private", RuleTargetKind::BrowserHost => "example.com",
-                    }).desired_width(360.0)); ui.end_row();
-                    ui.label("Action");
-                    egui::ComboBox::from_id_salt("rule_action").selected_text(match self.rule_action {
-                        peacelocker_core::RuleAction::Block => "Block (not enforced yet)", peacelocker_core::RuleAction::Notify => "Notify",
-                    }).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.rule_action, peacelocker_core::RuleAction::Block, "Block (not enforced yet)");
-                        ui.selectable_value(&mut self.rule_action, peacelocker_core::RuleAction::Notify, "Notify");
-                    }); ui.end_row();
-                });
-                ui.horizontal(|ui| {
-                    if ui.button(if self.editing_rule_id.is_some() { "Save changes" } else { "Add rule" }).clicked() { self.save_rule(); }
-                    if self.editing_rule_id.is_some() && ui.button("Cancel edit").clicked() {
-                        self.editing_rule_id = None; self.rule_label.clear(); self.rule_target.clear(); self.rule_error = None;
-                    }
-                });
-                if let Some(error) = &self.rule_error { ui.colored_label(egui::Color32::LIGHT_RED, error); }
-                ui.separator();
-                let rules = self.core.snapshot().rules;
-                if rules.is_empty() { ui.label("No rules configured."); }
-                for rule in rules {
-                    ui.horizontal_wrapped(|ui| {
-                        let mut enabled = rule.enabled;
-                        if ui.checkbox(&mut enabled, "").changed() {
-                            if let Err(error) = self.core.execute(peacelocker_core::Command::SetRuleEnabled { id: rule.id, enabled }) { self.rule_error = Some(error.to_string()); }
-                        }
-                        ui.label(egui::RichText::new(&rule.label).strong());
-                        ui.label(format!("{:?} · {} · {:?}", rule.target_kind, rule.target, rule.action));
-                        if ui.small_button("Edit").clicked() { self.begin_edit_rule(&rule); }
-                        if ui.small_button("Delete").clicked() {
-                            if let Err(error) = self.core.execute(peacelocker_core::Command::RemoveRule(rule.id)) { self.rule_error = Some(error.to_string()); }
-                            if self.editing_rule_id == Some(rule.id) { self.editing_rule_id = None; self.rule_label.clear(); self.rule_target.clear(); }
-                        }
-                    });
-                }
-            });
-            ui.add_space(16.0);
-            ui.group(|ui| {
-                ui.heading("Implementation status");
-                ui.label("Windows process, Explorer and active-browser observations feed supervised workers. Lifecycle, folder and hostname changes are normalized and evaluated against core rules.");
-                ui.label("Rules can be managed in memory. Encrypted-store integration and durable event history remain incomplete.");
-                ui.label(format!("Runtime state: {}", self.snapshot.status_label()));
             });
         });
+
+        egui::TopBottomPanel::bottom("ascii_footer").show(context, |ui| {
+            ui.horizontal(|ui| {
+                ui.monospace(" PEACELOCKER // TERMINAL INTERFACE");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.monospace(" [NAV] LEFT PANEL");
+                });
+            });
+        });
+
         #[cfg(windows)]
-        if self.process_monitor.is_some() || self.explorer_monitor.is_some() || self.browser_monitor.is_some() { context.request_repaint_after(Duration::from_millis(200)); }
+        if self.process_monitor.is_some() || self.explorer_monitor.is_some() || self.browser_monitor.is_some() {
+            context.request_repaint_after(Duration::from_millis(200));
+        }
     }
 }
 
-fn status_card(ui: &mut egui::Ui, title: &str, value: &str, detail: &str) {
-    egui::Frame::group(ui.style()).show(ui, |ui| {
-        ui.set_min_width(190.0); ui.set_min_height(104.0);
-        ui.label(egui::RichText::new(title).small().weak()); ui.add_space(6.0);
-        ui.heading(value); ui.label(egui::RichText::new(detail).small().weak());
+fn terminal_panel(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
+    ui.group(|ui| {
+        ui.monospace(format!("+--[ {title} ]"));
+        ui.separator();
+        add_contents(ui);
+        ui.separator();
+        ui.monospace("+--------------------------------------------------------------+");
     });
 }
