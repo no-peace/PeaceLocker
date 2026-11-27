@@ -1,6 +1,6 @@
 # PeaceLocker 2.0 — Rust rewrite
 
-The Rust rewrite is developed on `rewrite/rust-v2`. The root [README.md](README.md) is the canonical guide for setup, build commands, application use, and current limitations.
+The Rust rewrite has been merged into `main`; ongoing development may continue on `rewrite/rust-v2`. The root [README.md](README.md) is the canonical guide for setup, build commands, application use, and current limitations.
 
 > **Development warning:** This is an experimental development build. It has not passed a recorded Cargo build/test run, Windows runtime validation, or independent security review. Do not rely on it to protect real data or enforce restrictions.
 
@@ -38,7 +38,7 @@ Install Rust stable (edition 2024; workspace minimum Rust 1.85), rustfmt, Clippy
 From the repository root in PowerShell:
 
 ```powershell
-git switch rewrite/rust-v2
+git switch main
 cargo check --workspace
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
