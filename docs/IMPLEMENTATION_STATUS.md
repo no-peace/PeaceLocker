@@ -1,10 +1,10 @@
 # Rust v2 implementation status
 
-Last updated: 2026-11-21
+Last updated: 2026-11-27
 
 ## Current milestone
 
-**Phase 7 — Windows PIN-session orchestration is implemented; egui setup/unlock screens and app wiring remain.**
+**Phase 8 — Interactive ASCII desktop UI, PIN setup/unlock, encrypted rule persistence, and monitoring controls are connected; build and runtime validation remain pending.**
 
 Branch: `rewrite/rust-v2`
 
@@ -26,13 +26,13 @@ Implemented: versioned encrypted configuration document, fresh DEK per write, DP
 
 Implemented additionally: Windows DPAPI-backed PIN session orchestration for first-run setup and unlock, persisted failed-attempt/lockout transitions, one-time recovery-code generation, and authenticated rule-snapshot persistence API.
 
-Remaining: egui PIN/recovery UI, application data-directory/ACL handling, desktop app/session lifecycle integration, recovery-code unlock/consumption, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
+Remaining: explicit Windows ACL/reparse-point verification, recovery-code unlock/consumption, PIN change, TPM legacy migration, migration preview, single-instance coordination, schema upgrades, and stronger anti-rollback lockout persistence.
 
 ## Phase 3 — core state, commands, and rules engine
 
 Implemented: typed protection lifecycle, commands and revisions, immutable snapshots, validated process/path/host rules, deterministic matching, monitor health and event contracts, bounded event queue, fake adapter, and tests.
 
-Remaining: connect core commands/snapshots to GUI and persist state changes through encrypted storage.
+Remaining: durable event history and a formal persisted application lifecycle model.
 
 ## Phase 4 — monitoring sources (partial)
 
@@ -66,8 +66,12 @@ Remaining:
 - [x] Add rule-management UI for process names, executable paths, folder paths and browser hostnames; support create, edit, enable/disable and delete through validated core commands.
 - [x] Add typed, bounded rule records to the encrypted configuration document; validate each rule and reject duplicate IDs.
 - [x] Add Windows PIN-session orchestration over the DPAPI encrypted store, with persisted lockout state and authenticated rule-snapshot save API.
-- [ ] Build egui first-run setup/unlock and recovery-code presentation screens.
-- [ ] Load and save editor changes through the encrypted store in the desktop app.
+- [x] Build interactive ASCII/monospace egui navigation and section panels.
+- [x] Add Windows first-run PIN/passphrase setup, unlock, lock action, one-time recovery-code display and acknowledgement.
+- [x] Resolve the configuration path under the current user's LOCALAPPDATA.
+- [x] Load stored rules after authentication and persist add/edit/enable/disable/delete changes through the encrypted session.
+- [ ] Add recovery-code unlock/consumption and PIN change workflows.
+- [ ] Verify Windows directory ACLs and add single-instance coordination.
 - [ ] Add durable event history.
 
 ## Documentation
@@ -76,7 +80,7 @@ The root [README.md](../README.md) now documents prerequisites, branch setup, bu
 
 ## Validation environment
 
-No CI run was started because GitHub Actions quota is exhausted. The execution environment has no rustc or cargo, so no local compile/test result is claimed. Source review does not replace Cargo check, formatting, Clippy, or Windows runtime testing.
+No workflow run or status check is recorded for the current branch head. The connected local terminal was unavailable and the execution environment has no rustc or cargo, so no local compile/test result is claimed. Source review does not replace Cargo check, formatting, Clippy, or Windows runtime testing.
 
 ## Release warning
 
