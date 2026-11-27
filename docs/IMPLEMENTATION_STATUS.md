@@ -6,7 +6,7 @@ Last updated: 2026-11-27
 
 **Phase 8 — Interactive ASCII desktop UI, PIN setup/unlock, encrypted rule persistence, and monitoring controls are connected; build and runtime validation remain pending.**
 
-Merged to `main` via PR #1; ongoing UI work is on `rewrite/rust-v2`.
+Merged to `main` via PRs #1 and #2; `rewrite/rust-v2` is synchronized with `main`.
 
 ## Phase 0 — workspace foundation
 
