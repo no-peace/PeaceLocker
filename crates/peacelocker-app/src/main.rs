@@ -320,7 +320,10 @@ impl PeaceLockerApp {
     #[cfg(windows)]
     fn lock_security(&mut self) {
         self.security_session = None;
-        self.core = CoreEngine::new();
+        let mut locked_core = CoreEngine::new();
+        let _ = locked_core.execute(Command::CompleteSetup);
+        let _ = locked_core.execute(Command::Lock);
+        self.core = locked_core;
         self.rule_label.clear();
         self.rule_target.clear();
         self.editing_rule_id = None;
