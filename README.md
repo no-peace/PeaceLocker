@@ -93,7 +93,7 @@ If the formatting or lint components are missing:
 rustup component add rustfmt clippy
 ```
 
-No external API key, cloud account, or hosted service is required to compile the current workspace. Windows DPAPI is an operating-system facility; the current application UI does not yet invoke the encrypted store.
+No external API key, cloud account, or hosted service is required to compile the current workspace. Windows DPAPI is an operating-system facility used by the Windows security-session and encrypted-store workflow.
 
 ## Get the source
 
@@ -233,27 +233,25 @@ cargo test --workspace -- --nocapture
 
 ## Using the current application
 
-1. Build and launch it using the commands above.
-2. The current egui window opens to the PeaceLocker overview.
-6. On Windows, open **Monitoring** to access the manual Start/Stop controls.
-7. Select **[ START ]** under Process Monitor to begin read-only process metadata polling.
-8. Review monitor status, inaccessible-process count, latest event and policy-match count.
-9. Start Explorer monitoring to observe filesystem-backed Explorer windows.
-10. Review Explorer monitor health and the number of observed filesystem windows.
-11. Start Browser monitoring to observe the foreground address bar in a supported browser.
-12. Review the detected browser and hostname; URL paths, queries and fragments are discarded.
-13. Use the corresponding **[ STOP ]** control to stop a worker.
+1. Build and launch the app using the commands above.
+2. The app opens to an interactive ASCII/monospace console. Use the left navigation to switch between Overview, Protection, Monitoring, Rules, Activity, Security, Notifications and Settings.
+3. On first launch on Windows, open **Protection** and create a passphrase of 6–128 bytes. Confirm it and create the encrypted configuration.
+4. Save the eight one-time recovery codes somewhere offline. Select the code text to copy it, then acknowledge that you saved them. The codes are not shown again.
+5. On later launches, open **Protection** and unlock using the passphrase. Three consecutive incorrect attempts trigger a persisted six-hour lockout.
+6. Open **Rules** to create, edit, enable/disable or delete process-name, executable-path, folder-path and browser-host rules. On Windows, each change is saved to the encrypted configuration. The Rules panel is locked until authentication succeeds.
+7. Open **Monitoring** and manually start the process, Explorer or browser observer using its **[ START ]** control. Use **[ STOP ]** to stop each worker.
+8. Review the latest observation and policy-match count in Overview or Activity.
 
-The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads only known address-bar controls in the foreground window, skips the address bar while it has keyboard focus, and stores hostnames only; it does not inspect page content or background tabs.
+The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads known address-bar controls in the foreground window, skips the address bar while it has keyboard focus, and stores hostnames only; it does not inspect page content or background tabs.
 
 Important behavior:
 
 - Monitoring is manual and opt-in; it does not start automatically.
-- The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only. The browser observer reads a supported foreground browser address-bar value through UI Automation; it never writes to the browser UI.
+- The process monitor uses query-only handles and does not request administrator elevation. Explorer reads shell window locations and process identities. The browser observer reads a supported foreground browser address-bar value through UI Automation; it never writes to the browser UI.
 - Some processes may be inaccessible to query; the UI reports a count.
-- The Rules section lets you add, edit, enable/disable and delete process-name, executable-path, folder-path and browser-host rules. On Windows, rules are loaded from and saved to the encrypted configuration after PIN unlock. On non-Windows systems, rule edits are in-memory only. Policy matches remain informational only.
-- **No process is suspended, killed, or blocked.**
-- On non-Windows systems the desktop shell may be buildable, but Windows process/Explorer monitoring controls and Windows DPAPI features are unavailable. Windows is the intended runtime platform.
+- Policy matches are informational only. **No process is suspended, killed, or blocked; no folder access is denied; and no browser navigation is blocked.**
+- On non-Windows systems, the desktop shell may be buildable, but DPAPI and Windows monitoring are unavailable. Rule edits on non-Windows systems remain in memory only.
+- Recovery-code unlock/consumption, PIN change and durable event history are not implemented.
 
 ## Workspace layout
 
@@ -291,18 +289,13 @@ PeaceLocker/
 
 ## Configuration and data
 
-The desktop app uses `%LOCALAPPDATA%\\PeaceLocker\\config.enc` on Windows. It exposes first-run PIN setup, unlock, one-time recovery-code display, lockout persistence and encrypted rule CRUD through the DPAPI-backed session. The directory inherits Windows profile permissions; explicit ACL verification and single-instance coordination remain outstanding.
+On Windows, the app stores its encrypted configuration at:
 
-When the storage workflow is integrated, the intended design is:
+`%LOCALAPPDATA%\\PeaceLocker\\config.enc`
 
-- A fresh random data-encryption key for each save.
-- AES-256-GCM authenticated encryption for the configuration payload.
-- Windows DPAPI protection of the data key for the current Windows user.
-- Versioned schema validation and bounded input sizes.
-- Atomic file replacement and a validated backup generation.
-- No plaintext credential fallback.
+The first-run flow creates the store using a no-clobber write. The store uses a fresh random data-encryption key for each save, AES-256-GCM for the configuration payload, and Windows current-user DPAPI to protect the data key. Rule CRUD and persisted lockout state are saved through the authenticated session. The PIN is an application authentication gate; it is not used to derive the encryption key.
 
-Do not manually edit the encrypted configuration file. The app currently uses `%LOCALAPPDATA%\\PeaceLocker\\config.enc` on Windows. Explicit directory ACL verification and single-instance coordination are not yet implemented.
+The configuration directory inherits the current user's Windows profile permissions. Explicit ACL verification, reparse-point hardening and single-instance coordination are not yet implemented. Do not manually edit the encrypted configuration file or copy it to another Windows user account and expect DPAPI to decrypt it.
 
 ## Troubleshooting
 
