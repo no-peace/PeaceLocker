@@ -74,7 +74,7 @@ impl SecuritySession {
             now_unix,
         );
         config.lockout = LockoutState::default();
-        store.save(&config)?;
+        store.create(&config)?;
         Ok((
             Self { store, config },
             SetupResult { recovery_codes: recovery.codes },
