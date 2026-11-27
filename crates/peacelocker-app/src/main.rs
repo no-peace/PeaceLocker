@@ -1,13 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
 use eframe::egui;
-use peacelocker_core::{AppSnapshot, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, RuleTargetKind};
+use peacelocker_core::{AppSnapshot, Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
 
 #[cfg(windows)]
 use std::{sync::mpsc::Receiver, time::Duration};
 #[cfg(windows)]
 use peacelocker_monitor::{PollingConfig, ProcessMonitorMessage, ProcessMonitorService};
+#[cfg(windows)]
+use peacelocker_windows::{SecuritySession, UnlockResult};
 
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt()
@@ -22,7 +24,27 @@ fn main() -> eframe::Result<()> {
     eframe::run_native("PeaceLocker", options, Box::new(|_cc| Ok(Box::new(PeaceLockerApp::default()))))
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AppSection { Overview, Protection, Monitoring, Rules, Activity, Security, Notifications, Settings }
+
+impl AppSection {
+    const ALL: [(Self, &'static str); 8] = [
+        (Self::Overview, "[01] OVERVIEW"), (Self::Protection, "[02] PROTECTION"),
+        (Self::Monitoring, "[03] MONITORING"), (Self::Rules, "[04] RULES"),
+        (Self::Activity, "[05] ACTIVITY"), (Self::Security, "[06] SECURITY"),
+        (Self::Notifications, "[07] NOTIFICATIONS"), (Self::Settings, "[08] SETTINGS"),
+    ];
+}
+
 struct PeaceLockerApp {
+    active_section: AppSection,
+    security_message: String,
+    #[cfg(windows)] security_path: Option<PathBuf>,
+    #[cfg(windows)] security_configured: bool,
+    #[cfg(windows)] security_session: Option<SecuritySession>,
+    #[cfg(windows)] pin_input: String,
+    #[cfg(windows)] pin_confirmation: String,
+    #[cfg(windows)] recovery_codes: Vec<String>,
     snapshot: AppSnapshot,
     core: CoreEngine,
     event_queue: EventQueue,
@@ -67,7 +89,19 @@ struct PeaceLockerApp {
 }
 impl Default for PeaceLockerApp {
     fn default() -> Self {
+        #[cfg(windows)]
+        let security_path = default_config_path();
+        #[cfg(windows)]
+        let security_configured = security_path.as_ref().is_some_and(|path| SecuritySession::configuration_exists(path.clone()));
         Self {
+            active_section: AppSection::Overview,
+            security_message: "Security session is locked".into(),
+            #[cfg(windows)] security_path,
+            #[cfg(windows)] security_configured,
+            #[cfg(windows)] security_session: None,
+            #[cfg(windows)] pin_input: String::new(),
+            #[cfg(windows)] pin_confirmation: String::new(),
+            #[cfg(windows)] recovery_codes: Vec::new(),
             snapshot: AppSnapshot::default(), core: CoreEngine::new(), event_queue: EventQueue::new(1024),
             next_event_id: 1, matched_rule_count: 0, last_event: "No process events observed".into(),
             monitor_error: None,
