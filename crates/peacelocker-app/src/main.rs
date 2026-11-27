@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(windows)]
+use std::path::PathBuf;
 use eframe::egui;
 use peacelocker_core::{AppSnapshot, Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
 
@@ -10,6 +12,13 @@ use std::{sync::mpsc::Receiver, time::Duration};
 use peacelocker_monitor::{PollingConfig, ProcessMonitorMessage, ProcessMonitorService};
 #[cfg(windows)]
 use peacelocker_windows::{SecuritySession, UnlockResult};
+
+#[cfg(windows)]
+fn default_config_path() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map(|root| root.join("PeaceLocker").join("config.enc"))
+}
 
 fn main() -> eframe::Result<()> {
     tracing_subscriber::fmt()
@@ -227,6 +236,97 @@ impl PeaceLockerApp {
         self.rule_kind = rule.target_kind;
         self.rule_action = rule.action;
         self.rule_error = None;
+    }
+
+    #[cfg(windows)]
+    fn activate_security_session(&mut self, session: SecuritySession) {
+        let stored_rules = session.config().rules.clone();
+        let mut core = CoreEngine::new();
+        let _ = core.execute(Command::CompleteSetup);
+        for rule in stored_rules {
+            if let Err(error) = core.execute(Command::AddRule(rule)) {
+                self.rule_error = Some(format!("A stored rule could not be loaded: {error}"));
+            }
+        }
+        self.core = core;
+        self.security_session = Some(session);
+        self.security_configured = true;
+        self.security_message = "UNLOCKED // encrypted configuration loaded".into();
+    }
+
+    #[cfg(windows)]
+    fn setup_security(&mut self) {
+        let Some(path) = self.security_path.clone() else {
+            self.security_message = "LOCALAPPDATA is unavailable; cannot resolve a safe configuration location.".into();
+            return;
+        };
+        let pin = self.pin_input.clone();
+        if pin.as_bytes().len() < 6 || pin.as_bytes().len() > 128 {
+            self.security_message = "Use a passphrase/PIN between 6 and 128 bytes.".into();
+            return;
+        }
+        if pin != self.pin_confirmation {
+            self.security_message = "PIN confirmation does not match.".into();
+            return;
+        }
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match SecuritySession::setup(path, pin.as_bytes(), now) {
+            Ok((session, setup)) => {
+                self.recovery_codes = setup.recovery_codes;
+                self.pin_input.clear();
+                self.pin_confirmation.clear();
+                self.activate_security_session(session);
+                self.security_message = "SETUP COMPLETE // save the one-time recovery codes below".into();
+            }
+            Err(error) => self.security_message = format!("SETUP FAILED // {error}"),
+        }
+    }
+
+    #[cfg(windows)]
+    fn unlock_security(&mut self) {
+        let Some(path) = self.security_path.clone() else {
+            self.security_message = "LOCALAPPDATA is unavailable; cannot resolve the configuration location.".into();
+            return;
+        };
+        let pin = self.pin_input.clone();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)
+            .unwrap_or_default().as_secs();
+        match SecuritySession::unlock(path, pin.as_bytes(), now) {
+            Ok(UnlockResult::Authenticated(session)) => {
+                self.pin_input.clear();
+                self.activate_security_session(session);
+            }
+            Ok(UnlockResult::Rejected { attempts_remaining }) => {
+                self.pin_input.clear();
+                self.security_message = format!("ACCESS DENIED // {attempts_remaining} attempts remaining");
+            }
+            Ok(UnlockResult::LockedOut { until_unix }) => {
+                self.pin_input.clear();
+                self.security_message = format!("LOCKED OUT // retry after Unix time {until_unix}");
+            }
+            Err(error) => {
+                self.pin_input.clear();
+                self.security_message = format!("UNLOCK FAILED // {error}");
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    fn lock_security(&mut self) {
+        self.security_session = None;
+        self.core = CoreEngine::new();
+        self.rule_label.clear();
+        self.rule_target.clear();
+        self.editing_rule_id = None;
+        self.recovery_codes.clear();
+        self.security_message = "LOCKED // in-memory rules cleared".into();
+    }
+
+    #[cfg(windows)]
+    fn acknowledge_recovery_codes(&mut self) {
+        self.recovery_codes.clear();
+        self.security_message = "RECOVERY CODES ACKNOWLEDGED // keep them offline".into();
     }
 
     fn handle_process_change(&mut self, change: peacelocker_monitor::ProcessChange) {
