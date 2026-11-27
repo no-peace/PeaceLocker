@@ -11,6 +11,7 @@ peacelocker-core = { path = "../peacelocker-core" }
 peacelocker-monitor = { path = "../peacelocker-monitor" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+zeroize.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 peacelocker-windows = { path = "../peacelocker-windows" }
