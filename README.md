@@ -6,7 +6,7 @@ PeaceLocker is a Windows-focused desktop application project for configurable pr
 - **PeaceLocker 2.0 (Rust):** the active rewrite, developed on `rewrite/rust-v2`.
 
 > [!WARNING]
-> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI currently provides an application shell, an opt-in read-only Windows process monitor, an opt-in Explorer folder observer, and an opt-in active-browser hostname observer. PIN authentication, encrypted configuration, recovery, folder blocking, browser blocking, and enforcement are not connected to the GUI. Do not rely on this branch to protect files, accounts, or devices.
+> **The Rust rewrite is an experimental development build, not a working security product.** It has not been compiled or runtime-tested in this environment or independently security-reviewed. The GUI now provides an interactive ASCII/monospace console, first-run PIN setup and unlock, one-time recovery-code display, encrypted rule persistence, and opt-in read-only Windows process, Explorer and foreground-browser observers. It is still experimental, has not been compile-tested, and does not enforce blocking. Do not rely on this branch to protect files, accounts, or devices.
 
 ## Table of contents
 
@@ -32,15 +32,15 @@ The Rust workspace currently contains these implemented foundations:
 |---|---|
 | Desktop shell | Native egui/eframe application |
 | Core engine | Typed application state, protection lifecycle, commands, snapshots and rule evaluation |
-| Rules | Validated process-name, executable-path, browser-host and folder-path rules; in-memory UI for create, edit, enable/disable and delete |
+| Rules | Validated process-name, executable-path, browser-host and folder-path rules; interactive CRUD UI with encrypted persistence on Windows after unlock |
 | Event handling | Typed monitor events and bounded event queue |
 | Explorer observation | STA COM worker; filesystem-backed Explorer folder paths only; explicit Start/Stop controls |
 | Browser observation | STA UI Automation worker; foreground supported-browser address-bar only; hostname-only events |
-| PIN security | Argon2id verifier creation and verification with bounded parameters; Windows DPAPI-backed setup/unlock session orchestration API (not yet exposed in GUI) |
+| PIN security | Argon2id verifier, first-run setup/unlock UI, persisted lockout, and Windows DPAPI-backed session orchestration |
 | Secret encryption | AES-256-GCM authenticated encryption and single-use data-key primitives |
 | Windows key protection | Current-user DPAPI adapter |
 | Recovery | 128-bit recovery-code generation and Argon2id verifiers |
-| Encrypted storage | Versioned encrypted configuration envelope, fresh data key per save, atomic replacement, validated backup and typed validated rule records in the schema |
+| Encrypted storage | Versioned encrypted configuration envelope, fresh data key per save, atomic create/replace, validated backup and typed rule records |
 | Lockout | Persisted three-failure/six-hour lockout policy with clock rollback handling |
 | Legacy import | Read-only import of supported legacy DPAPI-wrapped/text configuration; plaintext fallback and TPM-wrapped import are rejected/not supported |
 | Process monitoring | Opt-in Windows process enumeration, supervised polling, baseline snapshot and lifecycle events |
@@ -51,12 +51,12 @@ These are foundations and are not equivalent to a finished end-user feature. In 
 
 The following are not available as complete application workflows:
 
-- First-run PIN setup, unlock, PIN change and recovery UI (session orchestration API exists, but the egui workflow is not connected yet).
-- Connecting the GUI to the encrypted configuration store and persisted lockout service.
+- PIN change and recovery-code unlock/consumption workflows.
+- Explicit Windows ACL verification for the per-user data directory; the current app uses the current user's LOCALAPPDATA path and inherited permissions.
 - Migration preview, confirmation and complete migration orchestration.
 - Explorer folder enforcement.
 - Browser URL blocking/enforcement. The current observer only reports foreground hostnames.
-- Loading/saving rule changes through the encrypted store from the desktop UI (typed rule storage is implemented, but app integration awaits PIN setup/unlock). Durable event history.
+- Durable event history.
 - Process suspension, termination, filesystem access control or network filtering.
 - Automatic startup, tray integration, watchdog and Explorer context-menu integration from the legacy app.
 - TPM-backed key protection and TPM-wrapped legacy vault migration.
@@ -235,14 +235,14 @@ cargo test --workspace -- --nocapture
 
 1. Build and launch it using the commands above.
 2. The current egui window opens to the PeaceLocker overview.
-3. On Windows, locate the **Monitoring controls** section.
-4. Select **Start process monitor** to begin read-only process metadata polling.
-5. Review the process monitor status, inaccessible-process count, latest event and policy-match count.
-6. Select **Start Explorer monitor** to observe filesystem-backed Explorer windows.
-7. Review Explorer monitor health and the number of observed filesystem windows.
-8. Select **Start browser monitor** to observe the foreground address bar in a supported browser.
-9. Review the detected browser and hostname; URL paths, queries and fragments are discarded.
-10. Use the corresponding **Stop** control to stop a worker.
+6. On Windows, open **Monitoring** to access the manual Start/Stop controls.
+7. Select **[ START ]** under Process Monitor to begin read-only process metadata polling.
+8. Review monitor status, inaccessible-process count, latest event and policy-match count.
+9. Start Explorer monitoring to observe filesystem-backed Explorer windows.
+10. Review Explorer monitor health and the number of observed filesystem windows.
+11. Start Browser monitoring to observe the foreground address bar in a supported browser.
+12. Review the detected browser and hostname; URL paths, queries and fragments are discarded.
+13. Use the corresponding **[ STOP ]** control to stop a worker.
 
 The first successful process snapshot is used as a baseline. Processes already running at that point are not reported as newly started. Later process starts and exits are normalized into core events. Explorer monitoring also establishes a first-snapshot baseline, then reports subsequent folder navigation and new filesystem-backed Explorer windows. Virtual shell locations (for example, This PC) are ignored rather than inferred from window titles. Browser monitoring reads only known address-bar controls in the foreground window, skips the address bar while it has keyboard focus, and stores hostnames only; it does not inspect page content or background tabs.
 
@@ -251,7 +251,7 @@ Important behavior:
 - Monitoring is manual and opt-in; it does not start automatically.
 - The process monitor uses query-only handles and does not request administrator elevation. The Explorer observer reads shell window locations and process identities only. The browser observer reads a supported foreground browser address-bar value through UI Automation; it never writes to the browser UI.
 - Some processes may be inaccessible to query; the UI reports a count.
-- The Rule management section lets you add, edit, enable/disable and delete process-name, executable-path, folder-path and browser-host rules. Rules currently live only in memory and are lost when the app closes. The policy-match count reflects matching observations, but matches remain informational only.
+- The Rules section lets you add, edit, enable/disable and delete process-name, executable-path, folder-path and browser-host rules. On Windows, rules are loaded from and saved to the encrypted configuration after PIN unlock. On non-Windows systems, rule edits are in-memory only. Policy matches remain informational only.
 - **No process is suspended, killed, or blocked.**
 - On non-Windows systems the desktop shell may be buildable, but Windows process/Explorer monitoring controls and Windows DPAPI features are unavailable. Windows is the intended runtime platform.
 
@@ -291,7 +291,7 @@ PeaceLocker/
 
 ## Configuration and data
 
-The encrypted-storage crate now supports typed rule records inside the encrypted configuration document. The Windows crate now exposes a DPAPI-backed PIN session API for first-run setup, unlock, persisted lockout transitions and saving rule snapshots. The desktop UI still does not invoke this API or create/load a user configuration; egui setup/unlock screens and a safe application data-directory resolver are still required.
+The desktop app uses `%LOCALAPPDATA%\\PeaceLocker\\config.enc` on Windows. It exposes first-run PIN setup, unlock, one-time recovery-code display, lockout persistence and encrypted rule CRUD through the DPAPI-backed session. The directory inherits Windows profile permissions; explicit ACL verification and single-instance coordination remain outstanding.
 
 When the storage workflow is integrated, the intended design is:
 
@@ -302,7 +302,7 @@ When the storage workflow is integrated, the intended design is:
 - Atomic file replacement and a validated backup generation.
 - No plaintext credential fallback.
 
-Do not manually create files or assume a particular on-disk configuration path at this stage.
+Do not manually edit the encrypted configuration file. The app currently uses `%LOCALAPPDATA%\\PeaceLocker\\config.enc` on Windows. Explicit directory ACL verification and single-instance coordination are not yet implemented.
 
 ## Troubleshooting
 
