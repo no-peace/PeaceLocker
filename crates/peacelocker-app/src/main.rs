@@ -103,7 +103,7 @@ impl Default for PeaceLockerApp {
         let security_path = default_config_path();
         #[cfg(windows)]
         let security_configured = security_path.as_ref().is_some_and(|path| SecuritySession::configuration_exists(path.clone()));
-        Self {
+        let mut app = Self {
             active_section: AppSection::Overview,
             #[cfg(windows)] security_message: "Security session is locked".into(),
             #[cfg(windows)] security_path,
@@ -133,7 +133,15 @@ impl Default for PeaceLockerApp {
             rule_kind: RuleTargetKind::ProcessName,
             rule_action: peacelocker_core::RuleAction::Block,
             editing_rule_id: None, rule_error: None,
+        };
+        #[cfg(windows)]
+        if app.security_configured {
+            let mut locked_core = CoreEngine::new();
+            let _ = locked_core.execute(Command::CompleteSetup);
+            let _ = locked_core.execute(Command::Lock);
+            app.core = locked_core;
         }
+        app
     }
 }
 
