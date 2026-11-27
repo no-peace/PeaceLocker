@@ -291,7 +291,7 @@ PeaceLocker/
 
 On Windows, the app stores its encrypted configuration at:
 
-`%LOCALAPPDATA%\\PeaceLocker\\config.enc`
+`%LOCALAPPDATA%\PeaceLocker\config.enc`
 
 The first-run flow creates the store using a no-clobber write. The store uses a fresh random data-encryption key for each save, AES-256-GCM for the configuration payload, and Windows current-user DPAPI to protect the data key. Rule CRUD and persisted lockout state are saved through the authenticated session. The PIN is an application authentication gate; it is not used to derive the encryption key.
 
