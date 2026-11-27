@@ -1,10 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(windows)]
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(windows)]
 use std::path::PathBuf;
 use eframe::egui;
-use peacelocker_core::{Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
+use peacelocker_core::{Command, CoreEngine, EventQueue, Rule, RuleAction, RuleTargetKind};
+#[cfg(windows)]
+use peacelocker_core::{MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget};
 #[cfg(windows)]
 use zeroize::Zeroize;
 
@@ -59,7 +62,7 @@ struct PeaceLockerApp {
     #[cfg(windows)] recovery_codes: Vec<String>,
     core: CoreEngine,
     event_queue: EventQueue,
-    next_event_id: u128,
+    #[cfg(windows)] next_event_id: u128,
     matched_rule_count: usize,
     last_event: String,
     monitor_error: Option<String>,
@@ -114,7 +117,8 @@ impl Default for PeaceLockerApp {
             #[cfg(windows)] pin_confirmation: String::new(),
             #[cfg(windows)] recovery_codes: Vec::new(),
             core: CoreEngine::new(), event_queue: EventQueue::new(1024),
-            next_event_id: 1, matched_rule_count: 0, last_event: "No process events observed".into(),
+            #[cfg(windows)] next_event_id: 1,
+            matched_rule_count: 0, last_event: "No process events observed".into(),
             monitor_error: None,
             #[cfg(windows)] process_monitor: None,
             #[cfg(windows)] process_receiver: None,
@@ -350,6 +354,7 @@ impl PeaceLockerApp {
         self.security_message = "RECOVERY CODES ACKNOWLEDGED // keep them offline".into();
     }
 
+    #[cfg(windows)]
     fn handle_process_change(&mut self, change: peacelocker_monitor::ProcessChange) {
         let kind = match change.kind {
             peacelocker_monitor::ProcessChangeKind::Started => MonitorEventKind::ProcessStarted,
