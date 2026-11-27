@@ -4,7 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(windows)]
 use std::path::PathBuf;
 use eframe::egui;
-use peacelocker_core::{AppSnapshot, Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
+use peacelocker_core::{Command, CoreEngine, EventQueue, MonitorEvent, MonitorEventKind, MonitorSource, ObservedTarget, Rule, RuleAction, RuleTargetKind};
+use zeroize::Zeroize;
 
 #[cfg(windows)]
 use std::{sync::mpsc::Receiver, time::Duration};
@@ -33,7 +34,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native("PeaceLocker", options, Box::new(|_cc| Ok(Box::new(PeaceLockerApp::default()))))
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AppSection { Overview, Protection, Monitoring, Rules, Activity, Security, Notifications, Settings }
 
 impl AppSection {
@@ -54,7 +55,6 @@ struct PeaceLockerApp {
     #[cfg(windows)] pin_input: String,
     #[cfg(windows)] pin_confirmation: String,
     #[cfg(windows)] recovery_codes: Vec<String>,
-    snapshot: AppSnapshot,
     core: CoreEngine,
     event_queue: EventQueue,
     next_event_id: u128,
@@ -111,7 +111,7 @@ impl Default for PeaceLockerApp {
             #[cfg(windows)] pin_input: String::new(),
             #[cfg(windows)] pin_confirmation: String::new(),
             #[cfg(windows)] recovery_codes: Vec::new(),
-            snapshot: AppSnapshot::default(), core: CoreEngine::new(), event_queue: EventQueue::new(1024),
+            core: CoreEngine::new(), event_queue: EventQueue::new(1024),
             next_event_id: 1, matched_rule_count: 0, last_event: "No process events observed".into(),
             monitor_error: None,
             #[cfg(windows)] process_monitor: None,
@@ -150,6 +150,10 @@ impl PeaceLockerApp {
         };
 
         let existing_rules = self.core.snapshot().rules;
+        if self.editing_rule_id.is_some() && !existing_rules.iter().any(|item| item.id == id) {
+            self.rule_error = Some("The rule being edited no longer exists.".into());
+            return;
+        }
         let mut rule = match Rule::new(id, self.rule_label.trim(), self.rule_kind,
             self.rule_target.trim(), self.rule_action) {
             Ok(rule) => rule,
@@ -159,15 +163,16 @@ impl PeaceLockerApp {
             rule.enabled = existing.enabled;
         }
 
-        let mut next_rules = existing_rules.clone();
-        if let Some(existing) = next_rules.iter_mut().find(|item| item.id == id) {
-            *existing = rule.clone();
-        } else {
-            next_rules.push(rule.clone());
-        }
-
         #[cfg(windows)]
-        if !self.persist_rules(next_rules) { return; }
+        {
+            let mut next_rules = existing_rules.clone();
+            if let Some(existing) = next_rules.iter_mut().find(|item| item.id == id) {
+                *existing = rule.clone();
+            } else {
+                next_rules.push(rule.clone());
+            }
+            if !self.persist_rules(next_rules) { return; }
+        }
 
         let command = if self.editing_rule_id.is_some() {
             Command::ReplaceRule(rule)
@@ -203,21 +208,25 @@ impl PeaceLockerApp {
     }
 
     fn set_rule_enabled(&mut self, id: u64, enabled: bool) {
-        let mut next_rules = self.core.snapshot().rules;
-        let Some(rule) = next_rules.iter_mut().find(|rule| rule.id == id) else { return; };
-        rule.enabled = enabled;
         #[cfg(windows)]
-        if !self.persist_rules(next_rules) { return; }
+        {
+            let mut next_rules = self.core.snapshot().rules;
+            let Some(rule) = next_rules.iter_mut().find(|rule| rule.id == id) else { return; };
+            rule.enabled = enabled;
+            if !self.persist_rules(next_rules) { return; }
+        }
         if let Err(error) = self.core.execute(Command::SetRuleEnabled { id, enabled }) {
             self.rule_error = Some(error.to_string());
         }
     }
 
     fn delete_rule(&mut self, id: u64) {
-        let mut next_rules = self.core.snapshot().rules;
-        next_rules.retain(|rule| rule.id != id);
         #[cfg(windows)]
-        if !self.persist_rules(next_rules) { return; }
+        {
+            let mut next_rules = self.core.snapshot().rules;
+            next_rules.retain(|rule| rule.id != id);
+            if !self.persist_rules(next_rules) { return; }
+        }
         if let Err(error) = self.core.execute(Command::RemoveRule(id)) {
             self.rule_error = Some(error.to_string());
             return;
@@ -260,12 +269,13 @@ impl PeaceLockerApp {
             self.security_message = "LOCALAPPDATA is unavailable; cannot resolve a safe configuration location.".into();
             return;
         };
-        let pin = self.pin_input.clone();
+        let pin = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_input));
+        let confirmation = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_confirmation));
         if pin.as_bytes().len() < 6 || pin.as_bytes().len() > 128 {
             self.security_message = "Use a passphrase/PIN between 6 and 128 bytes.".into();
             return;
         }
-        if pin != self.pin_confirmation {
+        if pin.as_str() != confirmation.as_str() {
             self.security_message = "PIN confirmation does not match.".into();
             return;
         }
@@ -274,8 +284,6 @@ impl PeaceLockerApp {
         match SecuritySession::setup(path, pin.as_bytes(), now) {
             Ok((session, setup)) => {
                 self.recovery_codes = setup.recovery_codes;
-                self.pin_input.clear();
-                self.pin_confirmation.clear();
                 self.activate_security_session(session);
                 self.security_message = "SETUP COMPLETE // save the one-time recovery codes below".into();
             }
@@ -289,24 +297,20 @@ impl PeaceLockerApp {
             self.security_message = "LOCALAPPDATA is unavailable; cannot resolve the configuration location.".into();
             return;
         };
-        let pin = self.pin_input.clone();
+        let pin = zeroize::Zeroizing::new(std::mem::take(&mut self.pin_input));
         let now = SystemTime::now().duration_since(UNIX_EPOCH)
             .unwrap_or_default().as_secs();
         match SecuritySession::unlock(path, pin.as_bytes(), now) {
             Ok(UnlockResult::Authenticated(session)) => {
-                self.pin_input.clear();
                 self.activate_security_session(session);
             }
             Ok(UnlockResult::Rejected { attempts_remaining }) => {
-                self.pin_input.clear();
                 self.security_message = format!("ACCESS DENIED // {attempts_remaining} attempts remaining");
             }
             Ok(UnlockResult::LockedOut { until_unix }) => {
-                self.pin_input.clear();
                 self.security_message = format!("LOCKED OUT // retry after Unix time {until_unix}");
             }
             Err(error) => {
-                self.pin_input.clear();
                 self.security_message = format!("UNLOCK FAILED // {error}");
             }
         }
@@ -319,12 +323,16 @@ impl PeaceLockerApp {
         self.rule_label.clear();
         self.rule_target.clear();
         self.editing_rule_id = None;
+        for code in &mut self.recovery_codes { code.zeroize(); }
         self.recovery_codes.clear();
+        self.pin_input.zeroize();
+        self.pin_confirmation.zeroize();
         self.security_message = "LOCKED // in-memory rules cleared".into();
     }
 
     #[cfg(windows)]
     fn acknowledge_recovery_codes(&mut self) {
+        for code in &mut self.recovery_codes { code.zeroize(); }
         self.recovery_codes.clear();
         self.security_message = "RECOVERY CODES ACKNOWLEDGED // keep them offline".into();
     }
@@ -597,8 +605,12 @@ impl PeaceLockerApp {
             if self.security_session.is_some() {
                 ui.monospace(" [ SESSION: UNLOCKED ]");
                 ui.monospace(" Your encrypted configuration is open in this process.");
-                if ui.button(egui::RichText::new("[ LOCK PEACELOCKER ]").monospace()).clicked() {
+                if self.recovery_codes.is_empty()
+                    && ui.button(egui::RichText::new("[ LOCK PEACELOCKER ]").monospace()).clicked() {
                     self.lock_security();
+                }
+                if !self.recovery_codes.is_empty() {
+                    ui.monospace(" Save and acknowledge the recovery codes before locking.");
                 }
             } else if self.security_configured {
                 ui.monospace(" [ SESSION: LOCKED ]");
@@ -904,9 +916,8 @@ impl eframe::App for PeaceLockerApp {
             ui.monospace("+--[ NAVIGATION ]--+");
             ui.separator();
             for (section, label) in AppSection::ALL {
-                if ui.add_sized([ui.available_width(), 30.0],
-                    egui::SelectableLabel::new(self.active_section == section,
-                        egui::RichText::new(label).monospace())).clicked() {
+                if ui.selectable_label(self.active_section == section,
+                    egui::RichText::new(label).monospace()).clicked() {
                     self.active_section = section;
                 }
             }
