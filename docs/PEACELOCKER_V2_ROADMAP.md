@@ -66,3 +66,19 @@ The editor is a management interface only. `Block` is currently a stored policy 
 - [ ] Connect app startup and rule CRUD to the authenticated session.
 - [ ] Implement recovery-code consumption and PIN change workflows.
 - [ ] Validate compilation, tests and Windows DPAPI runtime behavior.
+
+
+## Phase 8 — Interactive desktop integration
+
+- [x] Replace the placeholder dashboard with a dark monospace ASCII-console UI.
+- [x] Add functional section navigation and interactive status panels.
+- [x] Add first-run PIN/passphrase setup, confirmation, unlock and explicit lock screens.
+- [x] Display one-time recovery codes and require in-app acknowledgement before locking.
+- [x] Zeroize PIN input and recovery-code buffers when cleared and on app exit.
+- [x] Resolve the encrypted store beneath the current user's LOCALAPPDATA.
+- [x] Load persisted rules after successful authentication.
+- [x] Persist rule create/edit/enable/disable/delete changes through the authenticated session.
+- [ ] Implement recovery-code unlock/consumption and PIN change.
+- [ ] Verify data-directory ACLs and reparse-point behavior; implement single-instance coordination.
+- [ ] Persist durable event history and connect remaining settings.
+- [ ] Run Cargo check, rustfmt, Clippy, workspace tests, and Windows runtime validation.
