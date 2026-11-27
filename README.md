@@ -104,10 +104,11 @@ git clone https://github.com/no-peace/PeaceLocker.git
 cd PeaceLocker
 ```
 
-Switch to the Rust rewrite branch:
+The Rust rewrite has been merged into `main`. Switch to the default branch:
 
 ```powershell
-git switch rewrite/rust-v2
+git switch main
+git pull origin main
 ```
 
 If the branch is not present in your local clone yet:
@@ -360,6 +361,7 @@ Read these documents for design details and implementation decisions:
 - [Phase 3 — core engine](docs/PHASE_3_CORE_ENGINE.md)
 - [Phase 4 — monitoring](docs/PHASE_4_MONITORING.md)
 - [Phase 7 — PIN session foundation](docs/PHASE_7_PIN_SESSION.md)
+- [Phase 8 — interactive desktop integration](docs/PHASE_8_DESKTOP_INTEGRATION.md)
 - [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
 ## Contributing
